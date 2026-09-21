@@ -2,3 +2,4 @@
 
 - 2026-09-21 — Initial build: public site (EN/HE/DE), booking flow with PayPal (Orders v2) + demo mode, Morning receipts (new OAuth API, June 2026), admin panel (dashboard, calendar, bookings, rooms, settings, integrations), Postgres with no-double-booking constraint, seed from bethel-hostel.com. Tested locally: API flows, race of 6 bookings for 1 room, admin actions, mocked PayPal+Morning flow test (npm test), mobile layout. (commit 8df4664)
 - 2026-09-21 — Handoff: HANDOFF.md written for moving the project to another PC / Claude account; nothing deployed or published. (commit e5eb7f4)
+- 2026-09-21 — Saved Simon's second requirements summary (docs/other-session-summary-he.md) + gap analysis (docs/requirements-comparison.md); HANDOFF updated. No code changes. (commit ba55c1f)
