@@ -21,6 +21,19 @@ Written 2026-09-21 at the end of the first build session (the session was on Sim
   - Verify that files really saved. Add a timestamped line with the commit hash to `project-log.md` after each step.
   - PowerShell here-strings corrupt Hebrew. Write files with the editor tool, not `echo` or `@'…'@`.
 
+## 0.5 ⚠ IMPORTANT – there is a SECOND requirements document
+
+At the end of the session Simon pasted a requirements summary from a **different conversation** about the same hostel. It is saved verbatim in **`docs/other-session-summary-he.md`**; the full analysis is in **`docs/requirements-comparison.md`**. **Read both before changing anything.**
+
+It **conflicts** with the seed data built from the old website, and it probably reflects newer information from the hostel:
+- 24 beds in 4 shared rooms (2 women's, 2 men's) at **₪150 per bed**, plus **3 studios at ₪300 per paying guest aged 13+**, with children up to 12 free.
+- Check-in/out **15:00 / 11:00**, **no same-day booking**, a **non-refundable** policy with a proof checkbox.
+- A **Group Stay** inquiry form for 10+ guests.
+- **iCount** instead of Morning, **EN + DE only**.
+- The non-profit **has no credit card**, which affects Railway and the invoicing subscription.
+
+**Simon has not yet confirmed which version is correct. Ask him first.** Sections C and G of the comparison list the worthwhile additions and a suggested implementation order.
+
 ## 1. What was asked and what was decided
 
 - **Request (Hebrew, paraphrased):** build a website for his hostel with online booking paid through **PayPal**, management of the rooms, and **pick an Israeli company for online invoices/receipts**. The hostel is run by a **registered Israeli non-profit (עמותה)**.
@@ -187,7 +200,7 @@ The test bookings from the old PC's database are not transferred. That's fine: t
 
 ## 8. Next steps, in order. Each one needs Simon's explicit OK.
 
-1. Simon answers the assumptions in section 3. Update rooms and terms in the admin (or in the seed, if the database is still fresh).
+1. Simon answers the assumptions in section 3 **and the conflicts in `docs/requirements-comparison.md`, section A**. Then implement the agreed changes in the order of its section G: restructure rooms and pricing, children rules, non-refundable, Group Stay form, admin users, and so on.
 2. **PayPal sandbox.** Simon creates a REST app in developer.paypal.com with the non-profit's Business account (he creates the accounts himself; Claude doesn't). Put the keys in `.env` and run a real sandbox booking, both with a PayPal account and as a card guest. Check the NO_SHIPPING and locale behaviour.
 3. **Morning sandbox.** Simon gets sandbox API keys. Test the receipt end to end, and adjust `buildDocument` if Morning rejects anything, for example `income` on type 400.
 4. **Deploy (only after approval).**
