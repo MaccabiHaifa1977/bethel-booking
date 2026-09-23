@@ -3,8 +3,8 @@
 const { esc, jsonForScript, pickLang, nightsBetween } = require('./util');
 const { STR, t, PAGES } = require('./i18n');
 
-const LANGS = ['en', 'he', 'de'];
-const LANG_LABEL = { en: 'EN', he: 'עב', de: 'DE' };
+const LANGS = ['en', 'de', 'ru'];
+const LANG_LABEL = { en: 'EN', de: 'DE', ru: 'РУ', he: 'עב' };
 
 function prefix(lang) {
   return lang === 'en' ? '' : '/' + lang;

@@ -186,6 +186,9 @@ const STR = {
   },
 };
 
+// Fallback: Russian uses English strings for now (can be translated in admin settings later)
+STR.ru = STR.en;
+
 function t(lang, key, vars) {
   const s = (STR[lang] && STR[lang][key]) || STR.en[key] || key;
   if (!vars) return s;
