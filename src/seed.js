@@ -3,107 +3,65 @@ const db = require('./db');
 
 const WP = 'https://www.bethel-hostel.com/wp-content/uploads';
 
-// Initial room setup, taken from the current bethel-hostel.com site.
-// Everything here can be changed later in the admin panel (חדרים).
+// Initial room setup. Everything here can be changed later in the admin panel (חדרים ומחירים).
+// Layout and prices follow the hostel's current requirements (docs/other-session-summary-he.md):
+//   4 shared rooms of 6 beds  = 24 beds (2 women's rooms, 2 men's rooms) at 150 NIS per bed
+//   3 studio apartments at 300 NIS per adult; children up to 12 are free
+// Note: the "children are free" rule is approximated here with the price-per-guest table,
+// because the system does not track ages yet (see docs/requirements-comparison.md, C-1).
+const bedUnits = (room, count) => Array.from({ length: count }, (_, i) => `${room} · מיטה ${i + 1}`);
+
 const ROOM_TYPES = [
   {
-    slug: 'private-room',
-    name: { en: 'Private room', he: 'חדר פרטי', de: 'Privatzimmer' },
+    slug: 'dorm-women',
+    name: { en: 'Bed in a women’s shared room', he: 'מיטה בחדר משותף לנשים', de: 'Bett im Frauen-Mehrbettzimmer' },
     description: {
-      en: 'A quiet private room for one or two guests. Bed linens and towels are included.',
-      he: 'חדר פרטי ושקט לאורח אחד או לשניים. כולל מצעים ומגבות.',
-      de: 'Ein ruhiges Privatzimmer für ein oder zwei Gäste. Bettwäsche und Handtücher inklusive.',
+      en: 'One bed in a shared room for women, six beds per room. Showers, toilets and the kitchen are shared. Bed linens and towels are included.',
+      he: 'מיטה אחת בחדר משותף לנשים, שש מיטות בחדר. המקלחות, השירותים והמטבח משותפים. כולל מצעים ומגבות.',
+      de: 'Ein Bett im Mehrbettzimmer für Frauen, sechs Betten pro Zimmer. Duschen, WC und Küche werden geteilt. Bettwäsche und Handtücher inklusive.',
     },
     note: {
-      en: 'A private room for two is for married couples only.',
-      he: 'חדר פרטי לזוג מיועד לזוגות נשואים בלבד.',
-      de: 'Doppelzimmer werden nur an verheiratete Paare vergeben.',
+      en: 'Women only. A child may stay in a shared room only together with a parent of the same gender.',
+      he: 'לנשים בלבד. ילד יכול ללון בחדר משותף רק יחד עם הורה מאותו מין.',
+      de: 'Nur für Frauen. Ein Kind kann im Mehrbettzimmer nur zusammen mit einem Elternteil gleichen Geschlechts übernachten.',
     },
-    sold_as: 'room', capacity: 2, prices: [250, 300], gender: 'any',
-    photos: [`${WP}/2020/06/Room-3-Private-Double-1.jpeg`, `${WP}/2025/06/Room-5_-scaled-1200x675.jpeg`, `${WP}/2020/06/Room-3-Private-Double-2.jpeg`],
-    units: ['חדר 3', 'חדר 5'],
-  },
-  {
-    slug: 'private-triple',
-    name: { en: 'Private room for three', he: 'חדר פרטי לשלושה', de: 'Privatzimmer für drei' },
-    description: {
-      en: 'A private room with three beds, next to the promenade of rooms 2, 9 and 10.',
-      he: 'חדר פרטי עם שלוש מיטות, ליד הטיילת של חדרים 2, 9 ו-10.',
-      de: 'Ein Privatzimmer mit drei Betten an der Promenade der Zimmer 2, 9 und 10.',
-    },
-    note: {
-      en: 'A private room for two is for married couples only.',
-      he: 'חדר פרטי לזוג מיועד לזוגות נשואים בלבד.',
-      de: 'Doppelzimmer werden nur an verheiratete Paare vergeben.',
-    },
-    sold_as: 'room', capacity: 3, prices: [250, 300, 300], gender: 'any',
-    photos: [`${WP}/2020/06/Room-10-Private-3-beds-1200x676.jpg`, `${WP}/2020/06/Promenade_Rooms_2_9_10-1536x674.jpg`],
-    units: ['חדר 10'],
-  },
-  {
-    slug: 'studio',
-    name: { en: 'Studio', he: 'סטודיו', de: 'Studio' },
-    description: {
-      en: 'A spacious private studio on the promenade of rooms 2, 9 and 10.',
-      he: 'סטודיו פרטי ומרווח על הטיילת של חדרים 2, 9 ו-10.',
-      de: 'Ein geräumiges privates Studio an der Promenade der Zimmer 2, 9 und 10.',
-    },
-    note: {
-      en: 'For married couples only.',
-      he: 'לזוגות נשואים בלבד.',
-      de: 'Nur für verheiratete Paare.',
-    },
-    sold_as: 'room', capacity: 2, prices: [400, 400], gender: 'any',
-    photos: [`${WP}/2020/06/Bethel-Hostel-Room-9-Studio-1200x800.jpg`, `${WP}/2020/06/Bethel-Hostel-Room-9-Studio-2-1200x676.jpg`],
-    units: ['חדר 9'],
-  },
-  {
-    slug: 'family-room',
-    name: { en: 'Family room', he: 'חדר משפחה', de: 'Familienzimmer' },
-    description: {
-      en: 'A family room in the protected space (bomb shelter) of the house, with its own WC.',
-      he: 'חדר משפחה בממ״ד של הבית, עם שירותים צמודים.',
-      de: 'Ein Familienzimmer im Schutzraum des Hauses mit eigenem WC.',
-    },
-    note: {
-      en: 'Family rooms are for married couples, with or without children.',
-      he: 'חדרי משפחה מיועדים לזוגות נשואים, עם או בלי ילדים.',
-      de: 'Familienzimmer sind für verheiratete Paare mit oder ohne Kinder.',
-    },
-    sold_as: 'room', capacity: 4, prices: [250, 300, 300, 400], gender: 'any',
-    photos: [
-      `${WP}/2026/02/Room8-Family-Room-Bomb-Shelter-Main-Bedroom-1200x675.jpg`,
-      `${WP}/2026/02/Room8-Bomb-Shelter-Familiy-Room-scaled-1200x2133.jpg`,
-      `${WP}/2026/02/Room8-Bomb-Shelter-Family-Room-WC-scaled-1200x2133.jpg`,
-      `${WP}/2026/02/Room8-Family-Room-2nd-BathRoom-scaled-1200x2133.jpg`,
-    ],
-    units: ['חדר 8 (ממ״ד)'],
+    sold_as: 'bed', capacity: 1, prices: [150], gender: 'female',
+    photos: [`${WP}/2020/06/Room-6-6-bed-dormatory-.jpeg`],
+    units: [...bedUnits('חדר נשים א׳', 6), ...bedUnits('חדר נשים ב׳', 6)],
   },
   {
     slug: 'dorm-men',
-    name: { en: 'Bed in men’s dormitory', he: 'מיטה בחדר מעונות לגברים', de: 'Bett im Männer-Mehrbettzimmer' },
+    name: { en: 'Bed in a men’s shared room', he: 'מיטה בחדר משותף לגברים', de: 'Bett im Männer-Mehrbettzimmer' },
     description: {
-      en: 'A bed in a shared men-only dormitory with 8 beds. Bed linens and towels are included.',
-      he: 'מיטה בחדר מעונות משותף לגברים בלבד, 8 מיטות. כולל מצעים ומגבות.',
-      de: 'Ein Bett im Mehrbettzimmer nur für Männer (8 Betten). Bettwäsche und Handtücher inklusive.',
+      en: 'One bed in a shared room for men, six beds per room. Showers, toilets and the kitchen are shared. Bed linens and towels are included.',
+      he: 'מיטה אחת בחדר משותף לגברים, שש מיטות בחדר. המקלחות, השירותים והמטבח משותפים. כולל מצעים ומגבות.',
+      de: 'Ein Bett im Mehrbettzimmer für Männer, sechs Betten pro Zimmer. Duschen, WC und Küche werden geteilt. Bettwäsche und Handtücher inklusive.',
     },
-    note: { en: 'Men only.', he: 'לגברים בלבד.', de: 'Nur für Männer.' },
-    sold_as: 'bed', capacity: 1, prices: [100], gender: 'male',
+    note: {
+      en: 'Men only. A child may stay in a shared room only together with a parent of the same gender.',
+      he: 'לגברים בלבד. ילד יכול ללון בחדר משותף רק יחד עם הורה מאותו מין.',
+      de: 'Nur für Männer. Ein Kind kann im Mehrbettzimmer nur zusammen mit einem Elternteil gleichen Geschlechts übernachten.',
+    },
+    sold_as: 'bed', capacity: 1, prices: [150], gender: 'male',
     photos: [`${WP}/2025/06/Room-4--scaled-1200x900.jpeg`],
-    units: Array.from({ length: 8 }, (_, i) => `חדר 4 · מיטה ${i + 1}`),
+    units: [...bedUnits('חדר גברים א׳', 6), ...bedUnits('חדר גברים ב׳', 6)],
   },
   {
-    slug: 'dorm-women',
-    name: { en: 'Bed in women’s dormitory', he: 'מיטה בחדר מעונות לנשים', de: 'Bett im Frauen-Mehrbettzimmer' },
+    slug: 'studio',
+    name: { en: 'Studio apartment', he: 'דירת סטודיו', de: 'Studio-Apartment' },
     description: {
-      en: 'A bed in a shared women-only dormitory with 6 beds. Bed linens and towels are included.',
-      he: 'מיטה בחדר מעונות משותף לנשים בלבד, 6 מיטות. כולל מצעים ומגבות.',
-      de: 'Ein Bett im Mehrbettzimmer nur für Frauen (6 Betten). Bettwäsche und Handtücher inklusive.',
+      en: 'A private studio apartment with its own shower, toilet and kitchenette. For up to 2 adults and 2 children.',
+      he: 'דירת סטודיו פרטית עם מקלחת, שירותים ומטבחון פרטיים. עד 2 מבוגרים ו-2 ילדים.',
+      de: 'Ein privates Studio-Apartment mit eigener Dusche, WC und Küchenzeile. Für bis zu 2 Erwachsene und 2 Kinder.',
     },
-    note: { en: 'Women only.', he: 'לנשים בלבד.', de: 'Nur für Frauen.' },
-    sold_as: 'bed', capacity: 1, prices: [100], gender: 'female',
-    photos: [`${WP}/2020/06/Room-6-6-bed-dormatory-.jpeg`],
-    units: Array.from({ length: 6 }, (_, i) => `חדר 6 · מיטה ${i + 1}`),
+    note: {
+      en: '₪300 per adult per night. Children up to age 12 and infants stay free.',
+      he: '300 ₪ לכל מבוגר ללילה. ילדים עד גיל 12 ותינוקות ללא תשלום.',
+      de: '300 ₪ pro Erwachsenem und Nacht. Kinder bis 12 Jahre und Babys übernachten kostenlos.',
+    },
+    sold_as: 'room', capacity: 4, prices: [300, 600, 600, 600], gender: 'any',
+    photos: [`${WP}/2020/06/Bethel-Hostel-Room-9-Studio-1200x800.jpg`, `${WP}/2020/06/Bethel-Hostel-Room-9-Studio-2-1200x676.jpg`, `${WP}/2020/06/Promenade_Rooms_2_9_10-1536x674.jpg`],
+    units: ['סטודיו 1', 'סטודיו 2', 'סטודיו 3'],
   },
 ];
 
