@@ -1,4 +1,5 @@
 'use strict';
+// Force redeploy - healthcheck fix
 const path = require('path');
 try { process.loadEnvFile(path.join(__dirname, '.env')); } catch (_) { /* no .env file (e.g. on Railway) */ }
 
