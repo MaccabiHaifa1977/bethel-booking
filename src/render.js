@@ -198,7 +198,8 @@ function home(ctx, types) {
   const { lang, s } = ctx;
   const L = STR[lang];
   const q = encodeURIComponent(s.maps_query || '');
-  const body = `
+  const demo = booking.demoMode() ? `<div style="background:#ff9800;color:#000;padding:12px;text-align:center;font-weight:bold;margin-bottom:0;border-bottom:2px solid #e67e22;">🚀 DEMO MODE – This is a test site. Payments are simulated.</div>` : '';
+  const body = `${demo}
 <section class="hero" style="--hero:url('${esc(String(s.hero_image || '').replace(/'/g, '%27'))}')">
   <div class="container hero-inner">
     <p class="eyebrow">${esc(pickLang(s.site_subtitle, lang))}</p>
