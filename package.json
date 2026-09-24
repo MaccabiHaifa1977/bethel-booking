@@ -1,6 +1,6 @@
 {
   "name": "bethel-booking",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "private": true,
   "description": "Bethel Hostel Haifa - website, online booking (PayPal), receipts (Morning) and admin panel",
   "main": "server.js",
