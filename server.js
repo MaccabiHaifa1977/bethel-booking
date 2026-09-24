@@ -31,6 +31,7 @@ app.use((req, res, next) => {
 });
 
 app.get('/health', (req, res) => res.json({ ok: true }));
+app.get('/_version', (req, res) => res.json({ version: '2026-09-24-new', deployed: new Date().toISOString() }));
 
 app.use(express.static(path.join(__dirname, 'public'), { maxAge: '7d', index: false }));
 
