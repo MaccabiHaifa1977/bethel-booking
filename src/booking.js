@@ -142,7 +142,7 @@ async function createBooking(input, opts = {}) {
   const source = opts.source === 'admin' ? 'admin' : 'web';
   const kind = opts.kind === 'block' ? 'block' : 'guest';
   const isWeb = source === 'web';
-  const lang = ['en', 'he', 'de'].includes(input.lang) ? input.lang : 'en';
+  const lang = ['en', 'he', 'de', 'ru'].includes(input.lang) ? input.lang : 'en';
   const nights = checkDates(input.checkIn, input.checkOut, s, { admin: !isWeb });
 
   const rawLines = Array.isArray(input.lines) ? input.lines.slice(0, 40) : [];
@@ -316,7 +316,7 @@ async function startPaypal(token) {
     invoiceId,
     description: `${site} - booking ${b.code} (${dmy(b.check_in)} - ${dmy(b.check_out)})`,
     brandName: site,
-    locale: { he: 'he-IL', de: 'de-DE', en: 'en-US' }[b.lang] || 'en-US',
+    locale: { he: 'he-IL', de: 'de-DE', en: 'en-US', ru: 'ru-RU' }[b.lang] || 'en-US',
   });
   await db.q(
     `UPDATE bookings SET paypal_order_id = $2, updated_at = now(),

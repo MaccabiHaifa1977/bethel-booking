@@ -47,7 +47,7 @@ function bookConfig(s, lang, types, extra = {}) {
     maxGuests: s.max_guests_online,
     paymentMode: s.payment_mode,
     onlineAvailable: booking.onlinePaymentAvailable(),
-    paypal: paypal.configured() ? { clientId: paypal.clientId(), locale: { he: 'he_IL', de: 'de_DE', en: 'en_US' }[lang] } : null,
+    paypal: paypal.configured() ? { clientId: paypal.clientId(), locale: { he: 'he_IL', de: 'de_DE', en: 'en_US', ru: 'ru_RU' }[lang] } : null,
     demo: booking.demoMode() && !paypal.configured(),
     termsUrl: render.url(lang, '/terms'),
     bookingBase: render.url(lang, '/booking/'),

@@ -2,7 +2,7 @@
 const crypto = require('crypto');
 
 const TZ = 'Asia/Jerusalem';
-const LANGS = ['en', 'he', 'de'];
+const LANGS = ['en', 'he', 'de', 'ru'];
 
 class HttpError extends Error {
   constructor(status, code, message) {

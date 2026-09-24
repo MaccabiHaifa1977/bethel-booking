@@ -14,16 +14,18 @@ const bedUnits = (room, count) => Array.from({ length: count }, (_, i) => `${roo
 const ROOM_TYPES = [
   {
     slug: 'dorm-women',
-    name: { en: 'Bed in a women’s shared room', he: 'מיטה בחדר משותף לנשים', de: 'Bett im Frauen-Mehrbettzimmer' },
+    name: { en: 'Bed in a women’s shared room', he: 'מיטה בחדר משותף לנשים', de: 'Bett im Frauen-Mehrbettzimmer', ru: 'Место в общей женской комнате' },
     description: {
       en: 'One bed in a shared room for women, six beds per room. Showers, toilets and the kitchen are shared. Bed linens and towels are included.',
       he: 'מיטה אחת בחדר משותף לנשים, שש מיטות בחדר. המקלחות, השירותים והמטבח משותפים. כולל מצעים ומגבות.',
       de: 'Ein Bett im Mehrbettzimmer für Frauen, sechs Betten pro Zimmer. Duschen, WC und Küche werden geteilt. Bettwäsche und Handtücher inklusive.',
+      ru: 'Одно место в общей комнате для женщин, шесть кроватей в комнате. Душ, туалеты и кухня – общие. Постельное бельё и полотенца включены.',
     },
     note: {
       en: 'Women only. A child may stay in a shared room only together with a parent of the same gender.',
       he: 'לנשים בלבד. ילד יכול ללון בחדר משותף רק יחד עם הורה מאותו מין.',
       de: 'Nur für Frauen. Ein Kind kann im Mehrbettzimmer nur zusammen mit einem Elternteil gleichen Geschlechts übernachten.',
+      ru: 'Только для женщин. Ребёнок может жить в общей комнате только вместе с родителем того же пола.',
     },
     sold_as: 'bed', capacity: 1, prices: [150], gender: 'female',
     photos: [`${WP}/2020/06/Room-6-6-bed-dormatory-.jpeg`],
@@ -31,16 +33,18 @@ const ROOM_TYPES = [
   },
   {
     slug: 'dorm-men',
-    name: { en: 'Bed in a men’s shared room', he: 'מיטה בחדר משותף לגברים', de: 'Bett im Männer-Mehrbettzimmer' },
+    name: { en: 'Bed in a men’s shared room', he: 'מיטה בחדר משותף לגברים', de: 'Bett im Männer-Mehrbettzimmer', ru: 'Место в общей мужской комнате' },
     description: {
       en: 'One bed in a shared room for men, six beds per room. Showers, toilets and the kitchen are shared. Bed linens and towels are included.',
       he: 'מיטה אחת בחדר משותף לגברים, שש מיטות בחדר. המקלחות, השירותים והמטבח משותפים. כולל מצעים ומגבות.',
       de: 'Ein Bett im Mehrbettzimmer für Männer, sechs Betten pro Zimmer. Duschen, WC und Küche werden geteilt. Bettwäsche und Handtücher inklusive.',
+      ru: 'Одно место в общей комнате для мужчин, шесть кроватей в комнате. Душ, туалеты и кухня – общие. Постельное бельё и полотенца включены.',
     },
     note: {
       en: 'Men only. A child may stay in a shared room only together with a parent of the same gender.',
       he: 'לגברים בלבד. ילד יכול ללון בחדר משותף רק יחד עם הורה מאותו מין.',
       de: 'Nur für Männer. Ein Kind kann im Mehrbettzimmer nur zusammen mit einem Elternteil gleichen Geschlechts übernachten.',
+      ru: 'Только для мужчин. Ребёнок может жить в общей комнате только вместе с родителем того же пола.',
     },
     sold_as: 'bed', capacity: 1, prices: [150], gender: 'male',
     photos: [`${WP}/2025/06/Room-4--scaled-1200x900.jpeg`],
@@ -48,16 +52,18 @@ const ROOM_TYPES = [
   },
   {
     slug: 'studio',
-    name: { en: 'Studio apartment', he: 'דירת סטודיו', de: 'Studio-Apartment' },
+    name: { en: 'Studio apartment', he: 'דירת סטודיו', de: 'Studio-Apartment', ru: 'Квартира-студия' },
     description: {
       en: 'A private studio apartment with its own shower, toilet and kitchenette. For up to 2 adults and 2 children.',
       he: 'דירת סטודיו פרטית עם מקלחת, שירותים ומטבחון פרטיים. עד 2 מבוגרים ו-2 ילדים.',
       de: 'Ein privates Studio-Apartment mit eigener Dusche, WC und Küchenzeile. Für bis zu 2 Erwachsene und 2 Kinder.',
+      ru: 'Отдельная квартира-студия с собственным душем, туалетом и мини-кухней. Для 2 взрослых и 2 детей.',
     },
     note: {
       en: '₪300 per adult per night. Children up to age 12 and infants stay free.',
       he: '300 ₪ לכל מבוגר ללילה. ילדים עד גיל 12 ותינוקות ללא תשלום.',
       de: '300 ₪ pro Erwachsenem und Nacht. Kinder bis 12 Jahre und Babys übernachten kostenlos.',
+      ru: '₪300 за взрослого за ночь. Дети до 12 лет и младенцы – бесплатно.',
     },
     sold_as: 'room', capacity: 4, prices: [300, 600, 600, 600], gender: 'any',
     photos: [`${WP}/2020/06/Bethel-Hostel-Room-9-Studio-1200x800.jpg`, `${WP}/2020/06/Bethel-Hostel-Room-9-Studio-2-1200x676.jpg`, `${WP}/2020/06/Promenade_Rooms_2_9_10-1536x674.jpg`],
@@ -87,4 +93,18 @@ async function seedIfEmpty() {
   return true;
 }
 
-module.exports = { seedIfEmpty, ROOM_TYPES };
+// Adds a language that was introduced after the database was seeded, without overwriting admin edits.
+async function addMissingTranslations(lang = 'ru') {
+  for (const t of ROOM_TYPES) {
+    for (const field of ['name', 'description', 'note']) {
+      if (!t[field][lang]) continue;
+      await db.q(
+        `UPDATE room_types SET ${field} = ${field} || jsonb_build_object($2::text, $3::text)
+          WHERE slug = $1 AND NOT (${field} ? $2)`,
+        [t.slug, lang, t[field][lang]]
+      );
+    }
+  }
+}
+
+module.exports = { seedIfEmpty, addMissingTranslations, ROOM_TYPES };

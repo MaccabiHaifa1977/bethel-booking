@@ -61,10 +61,29 @@ const T = {
     refund: 'Eine eventuelle Erstattung erfolgt auf das ursprüngliche Zahlungsmittel.', bless: 'Wir freuen uns auf Ihren Besuch!',
     nights: (n) => (n === 1 ? '1 Nacht' : `${n} Nächte`), bed: 'Bett', guestsN: (n) => (n === 1 ? '1 Gast' : `${n} Gäste`),
   },
+  ru: {
+    confirmedSubject: (site, code) => `Бронирование подтверждено – ${site} (${code})`,
+    cancelledSubject: (site, code) => `Бронирование отменено – ${site} (${code})`,
+    hello: (n) => `Здравствуйте, ${n}!`,
+    confirmedIntro: 'Спасибо! Ваше бронирование подтверждено. Вот подробности:',
+    cancelledIntro: 'Ваше бронирование отменено.',
+    code: 'Номер бронирования', checkIn: 'Заезд', checkOut: 'Выезд', from: 'с', until: 'до',
+    rooms: 'Номера', guests: 'Гости', total: 'Итого', paid: 'Оплачено', due: 'Оплата при заезде',
+    view: 'Посмотреть бронирование', address: 'Адрес', contact: 'Есть вопросы? Свяжитесь с нами',
+    refund: 'Возврат, если он положен, поступит тем же способом, которым вы платили.', bless: 'Будем рады видеть вас!',
+    nights: (n) => `${n} ${ruPlural(n, 'ночь', 'ночи', 'ночей')}`, bed: 'место', guestsN: (n) => `${n} ${ruPlural(n, 'гость', 'гостя', 'гостей')}`,
+  },
 };
 
+function ruPlural(n, one, few, many) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
+}
+
 function fmtMoney(n, currency, lang) {
-  const locale = lang === 'he' ? 'he-IL' : lang === 'de' ? 'de-DE' : 'en-GB';
+  const locale = lang === 'he' ? 'he-IL' : lang === 'de' ? 'de-DE' : lang === 'ru' ? 'ru-RU' : 'en-GB';
   return new Intl.NumberFormat(locale, { style: 'currency', currency: currency || 'ILS', maximumFractionDigits: Number(n) % 1 ? 2 : 0 }).format(Number(n));
 }
 

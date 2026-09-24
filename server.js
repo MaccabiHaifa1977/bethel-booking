@@ -4,7 +4,7 @@ try { process.loadEnvFile(path.join(__dirname, '.env')); } catch (_) { /* no .en
 
 const express = require('express');
 const db = require('./src/db');
-const { seedIfEmpty } = require('./src/seed');
+const { seedIfEmpty, addMissingTranslations } = require('./src/seed');
 const booking = require('./src/booking');
 const publicRoutes = require('./src/routes/public');
 const adminRoutes = require('./src/routes/admin');
@@ -83,6 +83,7 @@ app.use((err, req, res, next) => {
 async function start() {
   await db.migrate();
   await seedIfEmpty();
+  await addMissingTranslations();
   app.listen(PORT, () => {
     console.log(`Bethel booking running on http://localhost:${PORT}`);
     console.log(`  PayPal: ${require('./src/paypal').configured() ? require('./src/paypal').env() : 'not configured'} | Morning: ${require('./src/morning').configured() ? require('./src/morning').env() : 'not configured'} | demo: ${booking.demoMode()}`);

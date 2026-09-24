@@ -349,7 +349,7 @@ router.post('/room-types', async (req, res) => {
 router.put('/room-types/:id', async (req, res) => {
   const t = cleanType(req.body || {});
   const r = await db.q(
-    `UPDATE room_types SET name = $2, description = $3, note = $4, sold_as = $5, capacity = $6, prices = $7, gender = $8,
+    `UPDATE room_types SET name = name || $2::jsonb, description = description || $3::jsonb, note = note || $4::jsonb, sold_as = $5, capacity = $6, prices = $7, gender = $8,
             photos = $9, sort = $10, active = $11 WHERE id = $1`,
     [int(req.params.id), t.name, t.description, t.note, t.sold_as, t.capacity, JSON.stringify(t.prices), t.gender, JSON.stringify(t.photos), t.sort, t.active]
   );
