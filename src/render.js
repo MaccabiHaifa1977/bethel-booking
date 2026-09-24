@@ -1,126 +1,72 @@
 'use strict';
-// Server-rendered pages of the public website (EN at "/", Hebrew at "/he", German at "/de")
-const { esc, jsonForScript, pickLang, nightsBetween } = require('./util');
+// Server-rendered pages of the public website. Building blocks live in src/ui/.
+const { esc, jsonForScript, pickLang, nightsBetween, todayIL, addDays } = require('./util');
 const { STR, t, PAGES } = require('./i18n');
+const { icon } = require('./ui/icons');
+const { picture, url: photoUrl } = require('./ui/photos');
+const C = require('./ui/components');
 
-const LANGS = ['en', 'de', 'ru'];
-const LANG_LABEL = { en: 'EN', de: 'DE', ru: 'РУ', he: 'עב' };
+const { LANGS, url, prefix, fmtMoney } = C;
 
-function prefix(lang) {
-  return lang === 'en' ? '' : '/' + lang;
-}
-function url(lang, path = '') {
-  return prefix(lang) + path || '/';
-}
-
-function fmtMoney(n, lang, currency = 'ILS') {
-  const v = Number(n) || 0;
-  return new Intl.NumberFormat(STR[lang].locale, { style: 'currency', currency, maximumFractionDigits: v % 1 ? 2 : 0 }).format(v);
-}
-function fmtDate(d, lang) {
-  return new Intl.DateTimeFormat(STR[lang].locale, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+function fmtDate(d, lang, opts) {
+  return new Intl.DateTimeFormat(STR[lang].locale, opts || { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
     .format(new Date(d + 'T00:00:00Z'));
 }
 
-const I = (p) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${p}</svg>`;
-const ICON = {
-  bed: I('<path d="M3 18v-7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v7M3 14h18M7 9V6h4v3"/>'),
-  wifi: I('<path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.5a9.5 9.5 0 0 1 13 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.2" r=".9"/>'),
-  lock: I('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'),
-  car: I('<path d="M5 17h14M4 13l2-5a2 2 0 0 1 2-1h8a2 2 0 0 1 2 1l2 5v4H4z"/><circle cx="7.5" cy="17" r="1.5"/><circle cx="16.5" cy="17" r="1.5"/>'),
-  phone: I('<path d="M5 3h4l2 5-2.5 1.5a11 11 0 0 0 6 6L16 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 5a2 2 0 0 1 2-2z"/>'),
-  chat: I('<path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12z"/>'),
-  mail: I('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>'),
-  pin: I('<path d="M12 21s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/>'),
-  clock: I('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
-  stairs: I('<path d="M3 20h5v-4h4v-4h4V8h5"/>'),
-  nosmoke: I('<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8M7 13h7M17 13h0"/>'),
-  people: I('<circle cx="8" cy="8" r="3"/><circle cx="16.5" cy="9" r="2.5"/><path d="M2.5 20a5.5 5.5 0 0 1 11 0M14 20a4.5 4.5 0 0 1 7.5-3.4"/>'),
-  doc: I('<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>'),
-  fb: I('<path d="M14 8h3V4h-3a4 4 0 0 0-4 4v2H8v4h2v7h4v-7h3l1-4h-4V8z"/>'),
-  check: I('<path d="m5 12 4.5 4.5L19 7"/>'),
-};
-
-const LOGO = `<svg class="logo-mark" viewBox="0 0 40 40" aria-hidden="true" focusable="false"><circle cx="20" cy="20" r="18.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 30V19a8 8 0 0 1 16 0v11" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 30h22" stroke="currentColor" stroke-width="1.8"/><path d="M20 12v8M16.5 15.5h7" stroke="currentColor" stroke-width="1.5"/></svg>`;
-
-function langSwitch(ctx) {
-  return LANGS.map((l) => {
-    const cur = l === ctx.lang;
-    return `<a href="${esc(url(l, ctx.path))}" hreflang="${l}" lang="${l}"${cur ? ' aria-current="true" class="on"' : ''} title="${esc(STR[l].langName)}">${LANG_LABEL[l]}</a>`;
-  }).join('');
+// "*word*" in admin-editable headlines becomes an accent
+function accent(text) {
+  return esc(text).replace(/\*([^*]+)\*/g, '<em>$1</em>');
 }
 
-function layout(ctx, { title, description, body, scripts = [], data = null, bodyClass = '', noindex = false }) {
+// Strings the browser scripts need (date picker, availability, errors)
+function siteI18n(lang) {
+  const keys = ['check_in', 'check_out', 'search_add_dates', 'dp_title', 'dp_prev', 'dp_next', 'dp_clear', 'dp_done', 'dp_pick_in', 'dp_pick_out',
+    'nights_n', 'night_1', 'close', 'room_left_n', 'room_left_1', 'room_none', 'e_network', 'e_generic', 'img_missing', 'e_group_fields', 'e_group_dates'];
+  const out = {};
+  for (const k of keys) out[k] = t(lang, k);
+  return { lang, locale: STR[lang].locale, today: todayIL(), t: out };
+}
+
+function layout(ctx, { title, description, body, scripts = [], data = null, bodyClass = '', noindex = false, overlayHeader = false, preload = '' }) {
   const { lang, s } = ctx;
   const L = STR[lang];
   const site = pickLang(s.site_name, lang);
   const fullTitle = title ? `${title} · ${site}` : `${site} – ${pickLang(s.site_subtitle, lang)}`;
-  const desc = description || pickLang(s.hero_text, lang);
+  const desc = description || pickLang(s.hero_text, lang).replace(/\*/g, '');
   const abs = (p) => (ctx.origin || '') + p;
   const alternates = LANGS.map((l) => `<link rel="alternate" hreflang="${l}" href="${esc(abs(url(l, ctx.path)))}">`).join('\n')
     + `\n<link rel="alternate" hreflang="x-default" href="${esc(abs(url('en', ctx.path)))}">`;
-  const home = url(lang);
-  const year = new Date().getFullYear();
+  const og = photoUrl(s.hero_image || 'garden');
 
   return `<!doctype html>
 <html lang="${lang}" dir="${L.dir}">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${esc(fullTitle)}</title>
 <meta name="description" content="${esc(desc.slice(0, 300))}">
 ${noindex ? '<meta name="robots" content="noindex">' : `<link rel="canonical" href="${esc(abs(url(lang, ctx.path)))}">\n${alternates}`}
 <meta property="og:title" content="${esc(fullTitle)}">
 <meta property="og:description" content="${esc(desc.slice(0, 300))}">
-<meta property="og:image" content="${esc(/^https?:/.test(s.hero_image) ? s.hero_image : abs(s.hero_image))}">
+<meta property="og:image" content="${esc(/^https?:/.test(og) ? og : abs(og))}">
 <meta property="og:type" content="website">
-<meta name="theme-color" content="#2c2217">
+<meta name="theme-color" content="#f6f1e8">
+<script>document.documentElement.classList.add('js')</script>
 <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=Heebo:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+Display:ital,wght@0,500;0,600;1,400;1,500&family=Onest:wght@400;500;600&display=swap">
+${preload}
 <link rel="stylesheet" href="/css/site.css?v=${ctx.version}">
 </head>
 <body class="${esc(bodyClass)}">
-<a class="skip" href="#main">${esc(L.skip)}</a>
-<header class="site-header">
-  <div class="container header-inner">
-    <a class="brand" href="${esc(home)}">${LOGO}<span class="brand-text"><span class="brand-name">${esc(site)}</span><span class="brand-sub">${esc(pickLang(s.site_subtitle, lang))}</span></span></a>
-    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav"><span class="bars" aria-hidden="true"></span><span class="sr">${esc(L.menu)}</span></button>
-    <nav id="site-nav" class="site-nav" aria-label="${esc(L.menu)}">
-      <a href="${esc(url(lang, '/rooms'))}">${esc(L.nav_rooms)}</a>
-      <a href="${esc(home)}#hostel">${esc(L.nav_hostel)}</a>
-      <a href="${esc(home)}#location">${esc(L.nav_location)}</a>
-      <a href="${esc(home)}#contact">${esc(L.nav_contact)}</a>
-      <span class="lang-switch" role="group" aria-label="Language">${langSwitch(ctx)}</span>
-      <a class="btn btn-accent nav-cta" href="${esc(url(lang, '/book'))}">${esc(L.nav_book)}</a>
-    </nav>
-  </div>
-</header>
-<main id="main">
+<a class="skip-link" href="#main">${esc(L.skip)}</a>
+${C.header(ctx, { overlay: overlayHeader })}
+<main id="main" tabindex="-1">
 ${body}
 </main>
-<footer class="site-footer" id="contact-footer">
-  <div class="container footer-grid">
-    <div>
-      <p class="footer-name">${esc(site)}</p>
-      <p>${esc(pickLang(s.site_subtitle, lang))}</p>
-      <p class="muted">${esc(L.nonprofit)}</p>
-    </div>
-    <div>
-      <p>${ICON.pin}<span>${esc(pickLang(s.address, lang))}</span></p>
-      <p>${ICON.phone}<span dir="ltr">${esc(s.phones)}</span></p>
-      <p>${ICON.mail}<a href="mailto:${esc(s.email)}">${esc(s.email)}</a></p>
-    </div>
-    <div class="footer-links">
-      <a href="${esc(url(lang, '/terms'))}">${esc(L.nav_terms)}</a>
-      <a href="${esc(url(lang, '/privacy'))}">${esc(L.nav_privacy)}</a>
-      <a href="${esc(url(lang, '/accessibility'))}">${esc(L.nav_access)}</a>
-      <span class="lang-switch" role="group" aria-label="Language">${langSwitch(ctx)}</span>
-    </div>
-  </div>
-  <div class="container copyright">© ${year} ${esc(site)}</div>
-</footer>
+${C.footer(ctx)}
+<script type="application/json" id="site-data">${jsonForScript(siteI18n(lang))}</script>
 ${data ? `<script type="application/json" id="app-data">${jsonForScript(data)}</script>` : ''}
 <script src="/js/site.js?v=${ctx.version}" defer></script>
 ${scripts.map((src) => `<script src="${esc(src)}?v=${ctx.version}" defer></script>`).join('\n')}
@@ -128,201 +74,402 @@ ${scripts.map((src) => `<script src="${esc(src)}?v=${ctx.version}" defer></scrip
 </html>`;
 }
 
-// ------------------------------------------------------------ pieces
-
-function priceSummary(type, lang, currency) {
-  const L = STR[lang];
-  const prices = (type.prices || []).map(Number).filter((n) => n > 0);
-  if (!prices.length) return '';
-  if (type.sold_as === 'bed') return `<b>${esc(fmtMoney(prices[0], lang, currency))}</b> <span>${esc(L.per_bed_night)}</span>`;
-  const min = Math.min(...prices);
-  const same = prices.every((p) => p === prices[0]);
-  return `${same ? '' : `<span>${esc(L.from)}</span>`}<b>${esc(fmtMoney(min, lang, currency))}</b> <span>${esc(L.per_night)}</span>`;
+function heroPreload(src) {
+  const key = require('./ui/photos').keyOf(src);
+  if (!key) return '';
+  const m = require('./photos.json')[key];
+  const srcset = m.widths.map((w) => `/photos/${key}-${w}.webp ${w}w`).join(', ');
+  return `<link rel="preload" as="image" type="image/webp" imagesrcset="${srcset}" imagesizes="100vw" fetchpriority="high">`;
 }
 
-function typeBadges(type, lang) {
-  const L = STR[lang];
-  const b = [];
-  if (type.gender === 'male') b.push(`<span class="badge">${esc(L.men_only)}</span>`);
-  if (type.gender === 'female') b.push(`<span class="badge">${esc(L.women_only)}</span>`);
-  if (type.sold_as === 'room') b.push(`<span class="badge badge-soft">${ICON.people}${esc(t(lang, 'up_to', { n: type.capacity }))}</span>`);
-  return b.join('');
-}
+// ------------------------------------------------------------------ shared sections
 
-function roomCard(ctx, type) {
-  const { lang, s } = ctx;
-  const L = STR[lang];
-  const photo = (type.photos || [])[0];
-  const name = pickLang(type.name, lang);
-  return `<article class="room-card">
-  <a class="room-photo" href="${esc(url(lang, '/rooms'))}#room-${type.id}">${photo ? `<img src="${esc(photo)}" alt="${esc(name)}" loading="lazy">` : ''}</a>
-  <div class="room-body">
-    <div class="badges">${typeBadges(type, lang)}</div>
-    <h3>${esc(name)}</h3>
-    <p class="room-desc">${esc(pickLang(type.description, lang))}</p>
-    <div class="room-foot">
-      <p class="price">${priceSummary(type, lang, s.currency)}</p>
-      <a class="btn btn-accent btn-sm" href="${esc(url(lang, '/book'))}?type=${type.id}">${esc(L.book)}</a>
+function storySection(ctx, { lead, headingTag = 'h2' } = {}) {
+  const { lang } = ctx;
+  const pillars = [['leaf', 'story_p1_t', 'story_p1_d'], ['dining', 'story_p2_t', 'story_p2_d'], ['heart', 'story_p3_t', 'story_p3_d']];
+  return `<section class="section story" aria-labelledby="story-title">
+  <div class="container story__grid">
+    <div class="story__media reveal">
+      <div class="story__photo story__photo--main">${picture('porch', { alt: t(lang, 'am_garden'), sizes: '(min-width: 1000px) 40vw, 90vw', width: 1440 })}</div>
+      <div class="story__photo story__photo--small">${picture('fellowship', { alt: t(lang, 'am_lounge'), sizes: '(min-width: 1000px) 22vw, 50vw', width: 960 })}</div>
     </div>
-  </div>
-</article>`;
-}
-
-function gallery(items, lang, cls = '') {
-  return `<div class="gallery ${cls}">${items.map((g) => {
-    const cap = pickLang(g.caption, lang);
-    return `<a class="gallery-item" href="${esc(g.src)}" data-lightbox data-caption="${esc(cap)}"><img src="${esc(g.src)}" alt="${esc(cap)}" loading="lazy"><span class="cap">${esc(cap)}</span></a>`;
-  }).join('')}</div>`;
-}
-
-function contactBlock(ctx) {
-  const { lang, s } = ctx;
-  const L = STR[lang];
-  const phones = String(s.phones || '').split('/').map((p) => p.trim()).filter(Boolean);
-  return `<section class="section contact" id="contact">
-  <div class="container contact-inner">
-    <h2>${esc(L.contact_title)}</h2>
-    <div class="contact-actions">
-      ${phones.map((p) => `<a class="contact-pill" href="tel:${esc(p.replace(/[^\d+]/g, ''))}">${ICON.phone}<span dir="ltr">${esc(p)}</span></a>`).join('')}
-      ${s.whatsapp ? `<a class="contact-pill" href="https://wa.me/${esc(String(s.whatsapp).replace(/\D/g, ''))}" rel="noopener" target="_blank">${ICON.chat}<span>${esc(L.whatsapp)}</span></a>` : ''}
-      ${s.email ? `<a class="contact-pill" href="mailto:${esc(s.email)}">${ICON.mail}<span>${esc(s.email)}</span></a>` : ''}
-      ${s.facebook ? `<a class="contact-pill" href="${esc(s.facebook)}" rel="noopener" target="_blank">${ICON.fb}<span>${esc(L.facebook)}</span></a>` : ''}
+    <div class="story__copy reveal">
+      <p class="eyebrow">${esc(t(lang, 'story_eyebrow'))}</p>
+      <${headingTag} class="section-title" id="story-title">${esc(t(lang, 'story_title'))}</${headingTag}>
+      <p class="lead">${esc(lead || t(lang, 'story_text'))}</p>
+      <ul class="pillars">${pillars.map(([i, tk, dk]) => `<li class="pillar"><span class="pillar__icon">${icon(i)}</span><div><h3 class="pillar__title">${esc(t(lang, tk))}</h3><p>${esc(t(lang, dk))}</p></div></li>`).join('')}</ul>
+      <figure class="verse">
+        <blockquote><p>${esc(t(lang, 'verse'))}</p></blockquote>
+        <figcaption>${esc(t(lang, 'verse_ref'))}</figcaption>
+      </figure>
     </div>
   </div>
 </section>`;
 }
 
-// ------------------------------------------------------------ pages
+function roomsRail(ctx, types, { exclude } = {}) {
+  const list = types.filter((tp) => tp.id !== exclude);
+  return `<div class="room-rail" data-rail>${list.map((tp) => C.roomCard(ctx, tp)).join('')}</div>`;
+}
+
+function gtkSection(ctx, { deep = false } = {}) {
+  const { lang } = ctx;
+  return `<section class="section${deep ? ' section--deep' : ''}" aria-labelledby="gtk-title">
+  <div class="container">
+    ${C.sectionHead({ eyebrow: t(lang, 'gtk_eyebrow'), title: t(lang, 'gtk_title') , id: 'gtk-title' })}
+    ${C.goodToKnow(ctx)}
+  </div>
+</section>`;
+}
+
+function amenitiesSection(ctx) {
+  const { lang } = ctx;
+  return `<section class="section section--tight amenities-section" aria-labelledby="am-title">
+  <div class="container amenities-section__inner">
+    <div class="amenities-section__head">
+      <p class="eyebrow">${esc(t(lang, 'am_eyebrow'))}</p>
+      <h2 class="section-title section-title--sm" id="am-title">${esc(t(lang, 'am_title'))}</h2>
+    </div>
+    ${C.amenities(ctx)}
+  </div>
+</section>`;
+}
+
+function contactSection(ctx, { deep = true } = {}) {
+  const { lang } = ctx;
+  return `<section class="section${deep ? ' section--deep' : ''}" aria-labelledby="contact-title">
+  <div class="container">
+    ${C.sectionHead({ eyebrow: t(lang, 'contact_eyebrow'), title: t(lang, 'contact_title2'), lead: t(lang, 'contact_lead') , id: 'contact-title' })}
+    ${C.contactOptions(ctx)}
+  </div>
+</section>`;
+}
+
+function ctaBand(ctx) {
+  const { lang } = ctx;
+  return `<section class="section section--tight">
+  <div class="container">
+    <div class="cta-card reveal">
+      <div>
+        <h2 class="cta-card__title">${esc(t(lang, 'stay_title'))}</h2>
+        <p>${esc(t(lang, 'rooms_sub'))}</p>
+      </div>
+      <div class="btn-row">
+        <a class="btn btn-primary btn-lg" href="${esc(url(lang, '/book'))}">${icon('calendar')}<span>${esc(t(lang, 'search_submit'))}</span></a>
+        <a class="btn btn-secondary btn-lg" href="${esc(url(lang, '/groups'))}">${esc(t(lang, 'grp_cta'))}</a>
+      </div>
+    </div>
+  </div>
+</section>`;
+}
+
+// ------------------------------------------------------------------ pages
 
 function home(ctx, types) {
   const { lang, s } = ctx;
-  const L = STR[lang];
-  const q = encodeURIComponent(s.maps_query || '');
-  const demo = require('./booking').demoMode() ? `<div style="background:#ff9800;color:#000;padding:12px;text-align:center;font-weight:bold;margin-bottom:0;border-bottom:2px solid #e67e22;">🚀 ${esc(L.demo_banner)}</div>` : '';
-  const body = `${demo}
-<section class="hero" style="--hero:url('${esc(String(s.hero_image || '').replace(/'/g, '%27'))}')">
-  <div class="container hero-inner">
-    <p class="eyebrow">${esc(pickLang(s.site_subtitle, lang))}</p>
-    <h1>${esc(pickLang(s.hero_title, lang))}</h1>
-    <p class="hero-text">${esc(pickLang(s.hero_text, lang))}</p>
-    <form class="quick-book" action="${esc(url(lang, '/book'))}" method="get">
-      <label><span>${esc(L.check_in)}</span><input type="date" name="in" required data-date="in"></label>
-      <label><span>${esc(L.check_out)}</span><input type="date" name="out" required data-date="out"></label>
-      <button class="btn btn-accent" type="submit">${esc(L.check_availability)}</button>
-    </form>
+  const heroImg = s.hero_image || 'garden';
+  const body = `
+<section class="hero" data-hero>
+  <div class="hero__media">${picture(heroImg, { alt: pickLang(s.site_name, lang), sizes: '100vw', priority: true, width: 2560 })}</div>
+  <div class="container hero__inner">
+    <div class="hero__copy">
+      <p class="eyebrow eyebrow--light hero__eyebrow">${esc(t(lang, 'hero_eyebrow'))}</p>
+      <h1 class="hero__title">${accent(pickLang(s.hero_title, lang))}</h1>
+      <p class="hero__text">${esc(pickLang(s.hero_text, lang))}</p>
+    </div>
+    <div class="hero__search" id="search">
+      ${C.searchBar(ctx, { variant: 'hero' })}
+      <p class="hero__group">${esc(t(lang, 'search_group_hint', { n: s.max_guests_online || 14 }))} <a href="${esc(url(lang, '/groups'))}">${esc(t(lang, 'search_group_link'))}</a></p>
+    </div>
   </div>
 </section>
 
-<section class="features" aria-label="${esc(L.nav_hostel)}">
-  <div class="container features-inner">
-    <p>${ICON.bed}<span>${esc(L.f_linens)}</span></p>
-    <p>${ICON.wifi}<span>${esc(L.f_wifi)}</span></p>
-    <p>${ICON.lock}<span>${esc(L.f_safe)}</span></p>
-    <p>${ICON.car}<span>${esc(L.f_parking)}</span></p>
-  </div>
-</section>
+${storySection(ctx)}
 
-<section class="section" id="rooms">
+<section class="section section--deep" aria-labelledby="stay-title">
   <div class="container">
-    <div class="section-head">
-      <h2>${esc(L.rooms_title)}</h2>
-      <p>${esc(L.rooms_sub)}</p>
-    </div>
-    <div class="room-grid">${types.map((tp) => roomCard(ctx, tp)).join('')}</div>
-    <p class="center"><a class="link-arrow" href="${esc(url(lang, '/rooms'))}">${esc(L.view_all_rooms)}</a></p>
+    ${C.sectionHead({ eyebrow: t(lang, 'stay_eyebrow'), title: t(lang, 'stay_title'), lead: t(lang, 'rooms_sub'), link: { href: url(lang, '/rooms'), label: t(lang, 'view_all_rooms') } , id: 'stay-title' })}
+    ${roomsRail(ctx, types)}
   </div>
 </section>
 
-<section class="section section-sand" id="hostel">
+${amenitiesSection(ctx)}
+
+<section class="section section--flush-top" aria-labelledby="house-title">
   <div class="container">
-    <div class="section-head">
-      <h2>${esc(L.hostel_title)}</h2>
-      <p>${esc(pickLang(s.about_text, lang))}</p>
-    </div>
-    ${gallery(s.gallery || [], lang)}
+    ${C.sectionHead({ eyebrow: t(lang, 'house_eyebrow'), title: t(lang, 'house_title'), lead: t(lang, 'house_lead'), link: { href: url(lang, '/house'), label: t(lang, 'house_more') } , id: 'house-title' })}
+    ${C.mosaic(s.gallery || [], lang, { limit: 5 })}
   </div>
 </section>
 
-<section class="section" id="location">
-  <div class="container location-grid">
-    <div>
-      <h2>${esc(L.location_title)}</h2>
-      <p>${esc(pickLang(s.location_text, lang))}</p>
-      <p class="address">${ICON.pin}<span>${esc(pickLang(s.address, lang))}</span></p>
-      <p class="btn-row">
-        <a class="btn btn-ghost btn-sm" href="https://www.google.com/maps/search/?api=1&amp;query=${esc(q)}" target="_blank" rel="noopener">${esc(L.open_google)}</a>
-        <a class="btn btn-ghost btn-sm" href="https://waze.com/ul?q=${esc(q)}&amp;navigate=yes" target="_blank" rel="noopener">${esc(L.open_waze)}</a>
-      </p>
-      <div class="good">
-        <h3>${esc(L.good_to_know)}</h3>
-        <ul class="facts">
-          <li>${ICON.clock}<span>${esc(t(lang, 'checkin_from', { t: s.checkin_time }))} · ${esc(t(lang, 'checkout_until', { t: s.checkout_time }))}</span></li>
-          <li>${ICON.people}<span>${esc(L.rule_dorms)}</span></li>
-          <li>${ICON.nosmoke}<span>${esc(L.rule_smoke)}</span></li>
-          <li>${ICON.stairs}<span>${esc(L.rule_stairs)}</span></li>
-          <li>${ICON.doc}<a href="${esc(url(lang, '/terms'))}">${esc(L.rule_terms)}</a></li>
-        </ul>
-      </div>
+<section class="section section--deep" aria-labelledby="loc-title">
+  <div class="container split">
+    <div class="split__copy reveal">
+      <p class="eyebrow">${esc(t(lang, 'loc_eyebrow'))}</p>
+      <h2 class="section-title" id="loc-title">${esc(t(lang, 'loc_title'))}</h2>
+      <p class="lead">${esc(t(lang, 'loc_lead'))}</p>
+      <ul class="mini-list">
+        <li>${icon('city')}<div><b>${esc(t(lang, 'dest_colony_t'))}</b><span>${esc(t(lang, 'dest_colony_d'))}</span></div></li>
+        <li>${icon('waves')}<div><b>${esc(t(lang, 'dest_sea_t'))}</b><span>${esc(t(lang, 'dest_sea_d'))}</span></div></li>
+        <li>${icon('leaf')}<div><b>${esc(t(lang, 'dest_bahai_t'))}</b><span>${esc(t(lang, 'dest_bahai_d'))}</span></div></li>
+      </ul>
+      <a class="link-arrow" href="${esc(url(lang, '/location'))}">${esc(t(lang, 'loc_more'))}${icon('arrowRight')}</a>
     </div>
-    <div>
-      <div class="map" data-map-src="https://maps.google.com/maps?q=${esc(q)}&amp;hl=${lang}&amp;z=16&amp;output=embed">
-        <button class="btn btn-ghost" type="button" data-show-map>${ICON.pin}<span>${esc(L.show_map)}</span></button>
-        <p class="muted small">${esc(L.map_note)}</p>
-      </div>
-      ${(s.nearby || []).length ? `<h3 class="nearby-title">${esc(L.nearby_title)}</h3>${gallery(s.nearby, lang, 'gallery-2')}` : ''}
+    <div class="split__media reveal">
+      <div class="split__photo">${picture('bat-galim', { alt: t(lang, 'dest_sea_t'), sizes: '(min-width: 900px) 50vw, 100vw', width: 1180 })}</div>
+      <div class="split__photo split__photo--inset">${picture('haifa-view', { alt: t(lang, 'dest_bahai_t'), sizes: '(min-width: 900px) 22vw, 45vw', width: 640 })}</div>
     </div>
   </div>
 </section>
-${contactBlock(ctx)}`;
-  return layout(ctx, { body, bodyClass: 'page-home' });
+
+${C.groupBand(ctx)}
+${gtkSection(ctx)}
+${contactSection(ctx)}
+${C.stickyCta(ctx, { href: '#search' })}`;
+  return layout(ctx, { body, bodyClass: 'page-home', overlayHeader: true, preload: heroPreload(heroImg) });
 }
 
-function roomsPage(ctx, types) {
-  const { lang, s } = ctx;
-  const L = STR[lang];
+function roomsPage(ctx, types, query = {}) {
+  const { lang } = ctx;
   const body = `
-<section class="page-head"><div class="container"><h1>${esc(L.rooms_title)}</h1><p>${esc(L.rooms_sub)}</p></div></section>
-<section class="section section-tight">
-  <div class="container room-list">
-  ${types.map((tp) => {
-    const name = pickLang(tp.name, lang);
-    const photos = tp.photos || [];
-    const prices = (tp.prices || []).map(Number);
-    const rows = tp.sold_as === 'bed'
-      ? `<tr><td>${esc(STR[lang].bed_1)}</td><td>${esc(fmtMoney(prices[0] || 0, lang, s.currency))}</td></tr>`
-      : prices.slice(0, tp.capacity).map((p, i) => `<tr><td>${esc(i === 0 ? L.one_guest : t(lang, 'n_guests', { n: i + 1 }))}</td><td>${esc(fmtMoney(p, lang, s.currency))}</td></tr>`).join('');
-    const note = pickLang(tp.note, lang);
-    return `<article class="room-row" id="room-${tp.id}">
-    <div class="room-gallery">
-      ${photos.length ? `<a class="main-photo" href="${esc(photos[0])}" data-lightbox data-caption="${esc(name)}"><img src="${esc(photos[0])}" alt="${esc(name)}" loading="lazy"></a>` : ''}
-      ${photos.length > 1 ? `<div class="thumbs">${photos.slice(1).map((p) => `<a href="${esc(p)}" data-lightbox data-caption="${esc(name)}"><img src="${esc(p)}" alt="" loading="lazy"></a>`).join('')}</div>` : ''}
+${C.pageHero(ctx, { eyebrow: t(lang, 'stay_eyebrow'), title: t(lang, 'stay_title'), lead: t(lang, 'rooms_sub'), compact: true })}
+<section class="section section--tight">
+  <div class="container">
+    <div class="date-strip" aria-label="${esc(t(lang, 'room_dates_title'))}">
+      ${C.searchBar(ctx, { variant: 'inline', action: '/rooms', values: query, submitLabel: t(lang, 'check_availability') })}
+      <p class="date-strip__hint" data-avail-hint>${esc(t(lang, 'room_dates_hint'))}</p>
     </div>
-    <div class="room-info">
-      <div class="badges">${typeBadges(tp, lang)}</div>
-      <h2>${esc(name)}</h2>
-      <p>${esc(pickLang(tp.description, lang))}</p>
-      ${note ? `<p class="note">${esc(note)}</p>` : ''}
-      <table class="price-table"><caption>${esc(L.prices_title)}</caption><tbody>${rows}</tbody></table>
-      <a class="btn btn-accent" href="${esc(url(lang, '/book'))}?type=${tp.id}">${esc(L.book)}</a>
-    </div>
-  </article>`;
-  }).join('')}
+    <div class="room-grid" data-avail-scope>${types.map((tp) => C.roomCard(ctx, tp, { headingTag: 'h2' })).join('')}</div>
   </div>
 </section>
-${contactBlock(ctx)}`;
-  return layout(ctx, { title: L.rooms_title, body, bodyClass: 'page-rooms' });
+${amenitiesSection(ctx)}
+${gtkSection(ctx, { deep: true })}
+${C.groupBand(ctx)}
+${C.stickyCta(ctx, { href: url(lang, '/book') })}`;
+  return layout(ctx, { title: t(lang, 'stay_title'), body, bodyClass: 'page-rooms' });
+}
+
+function roomPage(ctx, type, types, query = {}) {
+  const { lang, s } = ctx;
+  const name = pickLang(type.name, lang);
+  const desc = pickLang(type.description, lang);
+  const note = pickLang(type.note, lang);
+  const gender = C.genderLabel(type, lang);
+  const facts = C.roomFacts(type, lang);
+  const own = (type.photos || []).map((src) => ({ src, caption: { [lang]: name } }));
+  const shared = (s.gallery || []).filter((g) => !own.some((o) => o.src === g.src)).slice(0, 4);
+  const photos = own.concat(shared);
+  const rules = [];
+  if (note) rules.push(['info', note]);
+  if (type.sold_as === 'bed' && type.gender !== 'any') rules.push(['users', t(lang, 'rd_rule_gender')]);
+  if ((C.ROOM_FACTS[type.slug] || {}).kidsFree) rules.push(['heart', t(lang, 'rd_rule_kids')]);
+  rules.push(['clock', t(lang, 'gtk_times_d', { in: s.checkin_time, out: s.checkout_time })]);
+  rules.push(['refund', t(lang, 'gtk_cancel_d', { h: s.cancel_hours })]);
+  rules.push(['stairs', t(lang, 'gtk_stairs_d')]);
+  rules.push(['nosmoke', t(lang, 'gtk_smoke_d')]);
+  const features = facts.concat([['wifi', t(lang, 'am_wifi')], ['safe', t(lang, 'am_safe')], ['leaf', t(lang, 'am_garden')]]);
+  const priceHtml = C.priceLine(type, lang, s.currency);
+
+  const galleryItems = photos.map((g, i) => {
+    const cap = pickLang(g.caption, lang) || name;
+    return `<a class="room-gallery__item" href="${esc(photoUrl(g.src))}" data-lightbox data-caption="${esc(cap)}"${i > 4 ? ' hidden' : ''}>${picture(g.src, { alt: cap, sizes: i === 0 ? '(min-width: 900px) 60vw, 100vw' : '(min-width: 900px) 20vw, 50vw', width: i === 0 ? 1440 : 640, loading: i === 0 ? 'eager' : 'lazy' })}</a>`;
+  }).join('');
+
+  const body = `
+<section class="room-top">
+  <div class="container">
+    <a class="back-link" href="${esc(url(lang, '/rooms'))}">${icon('arrowLeft')}<span>${esc(t(lang, 'rd_all_rooms'))}</span></a>
+    <div class="room-head">
+      <div>
+        ${gender ? `<span class="chip chip--accent">${esc(gender)}</span>` : ''}
+        <h1 class="room-head__title">${esc(name)}</h1>
+        <ul class="facts-inline facts-inline--lg">${facts.slice(0, 3).map(([i, txt]) => `<li>${icon(i)}<span>${esc(txt)}</span></li>`).join('')}</ul>
+      </div>
+      <div class="room-head__price">${priceHtml}</div>
+    </div>
+    <div class="room-gallery${photos.length < 3 ? ' room-gallery--few' : ''}" data-gallery>
+      ${galleryItems}
+      ${photos.length > 1 ? `<button class="btn btn-light btn-sm room-gallery__all" type="button" data-gallery-open>${icon('grid')}<span>${esc(t(lang, 'rd_show_photos', { n: photos.length }))}</span></button>` : ''}
+    </div>
+  </div>
+</section>
+
+<section class="section section--tight">
+  <div class="container room-layout">
+    <div class="room-main">
+      <section class="room-block" aria-labelledby="rd-about">
+        <h2 class="room-block__title" id="rd-about">${esc(t(lang, 'rd_about'))}</h2>
+        <p class="lead lead--body">${esc(desc)}</p>
+      </section>
+      <section class="room-block" aria-labelledby="rd-in">
+        <h2 class="room-block__title" id="rd-in">${esc(t(lang, 'rd_in_room'))}</h2>
+        <ul class="feature-grid">${features.map(([i, txt]) => `<li>${icon(i)}<span>${esc(txt)}</span></li>`).join('')}</ul>
+      </section>
+      <section class="room-block" aria-labelledby="rd-prices">
+        <h2 class="room-block__title" id="rd-prices">${esc(t(lang, 'rd_prices'))}</h2>
+        <dl class="price-list">${C.priceRows(type, lang, s.currency).map(([a, b]) => `<div><dt>${esc(a)}</dt><dd>${esc(b)}</dd></div>`).join('')}</dl>
+      </section>
+      <section class="room-block" aria-labelledby="rd-rules">
+        <h2 class="room-block__title" id="rd-rules">${esc(t(lang, 'rd_rules'))}</h2>
+        <ul class="rule-list">${rules.map(([i, txt]) => `<li>${icon(i)}<span>${esc(txt)}</span></li>`).join('')}</ul>
+        <a class="link-arrow" href="${esc(url(lang, '/terms'))}">${esc(t(lang, 'gtk_all'))}${icon('arrowRight')}</a>
+      </section>
+    </div>
+    <aside class="booking-panel" id="book-panel" aria-label="${esc(t(lang, 'rd_check'))}">
+      <div class="booking-panel__card">
+        ${priceHtml}
+        ${C.searchBar(ctx, { variant: 'panel', action: '/book', values: query, hidden: { type: type.id }, submitLabel: t(lang, 'rd_check') })}
+        <p class="booking-panel__avail" data-panel-avail data-type-id="${type.id}" aria-live="polite"></p>
+        <p class="booking-panel__hint">${icon('shield', 'ico-sm')}<span>${esc(t(lang, 'rd_book_hint'))}</span></p>
+      </div>
+    </aside>
+  </div>
+</section>
+
+${types.length > 1 ? `<section class="section section--deep" aria-labelledby="other-title">
+  <div class="container">
+    ${C.sectionHead({ title: t(lang, 'stay_title'), link: { href: url(lang, '/rooms'), label: t(lang, 'view_all_rooms') } , id: 'other-title', small: true })}
+    ${roomsRail(ctx, types, { exclude: type.id })}
+  </div>
+</section>` : ''}
+${C.stickyCta(ctx, { href: '#book-panel', label: t(lang, 'rd_check'), price: priceHtml })}`;
+  return layout(ctx, { title: name, description: desc, body, bodyClass: 'page-room' });
+}
+
+function housePage(ctx) {
+  const { lang, s } = ctx;
+  const body = `
+${C.pageHero(ctx, { eyebrow: t(lang, 'house_eyebrow'), title: t(lang, 'house_title'), lead: t(lang, 'house_lead'), photo: 'courtyard' })}
+${storySection(ctx, { lead: pickLang(s.about_text, lang) })}
+<section class="section section--flush-top" aria-labelledby="spaces-title">
+  <div class="container">
+    ${C.sectionHead({ title: t(lang, 'house_spaces') , id: 'spaces-title', small: true })}
+    ${C.mosaic(s.gallery || [], lang, { cls: 'mosaic--all' })}
+  </div>
+</section>
+${amenitiesSection(ctx)}
+${gtkSection(ctx, { deep: true })}
+${ctaBand(ctx)}
+${C.stickyCta(ctx, { href: url(lang, '/book') })}`;
+  return layout(ctx, { title: t(lang, 'nav_house'), description: t(lang, 'house_lead'), body, bodyClass: 'page-house' });
+}
+
+function locationPage(ctx) {
+  const { lang, s } = ctx;
+  const body = `
+${C.pageHero(ctx, { eyebrow: t(lang, 'loc_eyebrow'), title: t(lang, 'loc_title'), lead: t(lang, 'loc_lead'), photo: 'haifa-view' })}
+<section class="section section--tight" aria-labelledby="arrive-title">
+  <div class="container split split--map">
+    <div class="split__copy reveal">
+      <h2 class="section-title section-title--sm" id="arrive-title">${esc(t(lang, 'loc_arrive_t'))}</h2>
+      <p class="lead lead--body">${esc(pickLang(s.location_text, lang))}</p>
+      <p class="callout">${icon('door')}<span>${esc(t(lang, 'loc_arrive_d'))}</span></p>
+    </div>
+    <div class="reveal">${C.mapBlock(ctx)}</div>
+  </div>
+</section>
+<section class="section section--deep" aria-labelledby="dest-title">
+  <div class="container">
+    ${C.sectionHead({ eyebrow: t(lang, 'nearby_title'), title: t(lang, 'loc_more') , id: 'dest-title' })}
+    ${C.destinations(ctx)}
+  </div>
+</section>
+${ctaBand(ctx)}
+${C.stickyCta(ctx, { href: url(lang, '/book') })}`;
+  return layout(ctx, { title: t(lang, 'nav_location'), description: t(lang, 'loc_lead'), body, bodyClass: 'page-location' });
+}
+
+function contactPage(ctx) {
+  const { lang } = ctx;
+  const body = `
+${C.pageHero(ctx, { eyebrow: t(lang, 'contact_eyebrow'), title: t(lang, 'contact_title2'), lead: t(lang, 'contact_lead'), compact: true })}
+<section class="section section--tight">
+  <div class="container">${C.contactOptions(ctx)}</div>
+</section>
+<section class="section section--deep" aria-labelledby="faq-title">
+  <div class="container faq-layout">
+    <h2 class="section-title" id="faq-title">${esc(t(lang, 'faq_title'))}</h2>
+    ${C.faq(ctx)}
+  </div>
+</section>
+${C.groupBand(ctx)}`;
+  return layout(ctx, { title: t(lang, 'nav_contact'), description: t(lang, 'contact_lead'), body, bodyClass: 'page-contact' });
+}
+
+function groupsPage(ctx, { values = {}, errors = [], sent = null } = {}) {
+  const { lang, s } = ctx;
+  const today = todayIL();
+  const v = (k) => esc(values[k] == null ? '' : values[k]);
+  const bad = (k) => (errors.includes(k) ? ' aria-invalid="true"' : '');
+  const field = (k, label, input, { opt = false, wide = false } = {}) => `<div class="field${wide ? ' field--wide' : ''}${errors.includes(k) ? ' field--error' : ''}">
+    <label for="g-${k}">${esc(label)}${opt ? ` <span class="field__opt">(${esc(t(lang, 'optional'))})</span>` : ''}</label>${input}</div>`;
+  const form = sent ? `<div class="form-card form-card--done" role="status">
+      <span class="success-mark">${icon('check')}</span>
+      <h2 class="form-card__title">${esc(t(lang, 'grp_sent_title'))}</h2>
+      <p>${esc(t(lang, 'grp_sent_text', { code: sent }))}</p>
+      <a class="btn btn-secondary" href="${esc(url(lang))}">${esc(t(lang, 'back_home'))}</a>
+    </div>` : `<form class="form-card" method="post" action="${esc(url(lang, '/groups'))}#group-form" id="group-form" novalidate data-group-form>
+      <h2 class="form-card__title">${esc(t(lang, 'grp_form_title'))}</h2>
+      <p class="form-card__lead">${esc(t(lang, 'grp_form_lead'))}</p>
+      ${errors.length ? `<div class="alert alert--error" role="alert">${icon('alert')}<span>${esc(t(lang, errors.includes('dates') ? 'e_group_dates' : errors.includes('server') ? 'e_generic' : 'e_group_fields'))}</span></div>` : ''}
+      <div class="form-grid">
+        ${field('group', t(lang, 'grp_name'), `<input id="g-group" name="group" maxlength="160" required value="${v('group')}"${bad('group')}>`, { wide: true })}
+        ${field('contact', t(lang, 'grp_contact'), `<input id="g-contact" name="contact" autocomplete="name" maxlength="120" required value="${v('contact')}"${bad('contact')}>`)}
+        ${field('email', t(lang, 'email_l'), `<input id="g-email" name="email" type="email" autocomplete="email" maxlength="200" required dir="ltr" value="${v('email')}"${bad('email')}>`)}
+        ${field('phone', t(lang, 'grp_phone'), `<input id="g-phone" name="phone" type="tel" autocomplete="tel" maxlength="40" required dir="ltr" value="${v('phone')}"${bad('phone')}>`)}
+        ${field('size', t(lang, 'grp_size'), `<input id="g-size" name="size" type="number" min="1" max="500" inputmode="numeric" required value="${v('size')}"${bad('size')}>`)}
+        <div class="form-dates field--wide${errors.some((e) => ['arrival', 'departure', 'dates'].includes(e)) ? ' has-error' : ''}" data-daterange data-dates-optional data-min="${today}" data-max="${addDays(today, 730)}" data-min-nights="1" data-max-nights="365">
+          ${field('arrival', t(lang, 'grp_arrival'), `<input id="g-arrival" name="arrival" type="date" min="${today}" required value="${v('arrival')}"${bad('arrival')}${bad('dates')} data-date-in>`)}
+          ${field('departure', t(lang, 'grp_departure'), `<input id="g-departure" name="departure" type="date" min="${addDays(today, 1)}" required value="${v('departure')}"${bad('departure')}${bad('dates')} data-date-out>`)}
+        </div>
+        ${field('adults', t(lang, 'grp_adults'), `<input id="g-adults" name="adults" type="number" min="0" max="500" inputmode="numeric" value="${v('adults')}">`, { opt: true })}
+        ${field('children', t(lang, 'grp_children'), `<input id="g-children" name="children" type="number" min="0" max="500" inputmode="numeric" value="${v('children')}">`, { opt: true })}
+        ${field('needs', t(lang, 'grp_needs'), `<textarea id="g-needs" name="needs" rows="3" maxlength="2000" placeholder="${esc(t(lang, 'grp_needs_help'))}">${v('needs')}</textarea>`, { opt: true, wide: true })}
+        ${field('message', t(lang, 'grp_message'), `<textarea id="g-message" name="message" rows="4" maxlength="4000">${v('message')}</textarea>`, { opt: true, wide: true })}
+      </div>
+      <div class="hp" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
+      <div class="form-card__foot">
+        <p class="form-card__privacy">${icon('shield', 'ico-sm')}<span>${esc(t(lang, 'grp_privacy'))}</span></p>
+        <button class="btn btn-primary btn-lg" type="submit" data-sending="${esc(t(lang, 'grp_sending'))}">${esc(t(lang, 'grp_submit'))}</button>
+      </div>
+    </form>`;
+  const body = `
+${C.pageHero(ctx, { eyebrow: t(lang, 'grp_eyebrow'), title: t(lang, 'grp_title'), lead: t(lang, 'grp_text'), photo: 'garden' })}
+<section class="section section--tight">
+  <div class="container group-layout">
+    <div class="group-layout__aside">
+      <ul class="check-list">${['grp_p1', 'grp_p2', 'grp_p3'].map((k) => `<li>${icon('checkCircle')}<span>${esc(t(lang, k))}</span></li>`).join('')}</ul>
+      <div class="group-layout__photo">${picture('fellowship', { alt: t(lang, 'am_lounge'), sizes: '(min-width: 900px) 35vw, 100vw', width: 960 })}</div>
+      <p class="muted">${esc(t(lang, 'contact_lead'))}</p>
+      <p class="btn-row">${s.whatsapp ? `<a class="btn btn-secondary btn-sm" href="https://wa.me/${esc(String(s.whatsapp).replace(/\D/g, ''))}" target="_blank" rel="noopener">${icon('chat')}<span>${esc(t(lang, 'whatsapp'))}</span></a>` : ''}${s.email ? `<a class="btn btn-secondary btn-sm" href="mailto:${esc(s.email)}">${icon('mail')}<span>${esc(t(lang, 'email'))}</span></a>` : ''}</p>
+    </div>
+    ${form}
+  </div>
+</section>`;
+  return layout(ctx, { title: t(lang, 'grp_title'), description: t(lang, 'grp_text'), body, bodyClass: 'page-groups', noindex: Boolean(sent) });
 }
 
 function bookPage(ctx, config) {
-  const L = STR[ctx.lang];
+  const { lang, s } = ctx;
   const body = `
-<section class="page-head page-head-sm"><div class="container"><h1>${esc(L.book_title)}</h1></div></section>
-<section class="section section-tight">
+<section class="book-head">
   <div class="container">
-    <div id="book-app" class="book-app" data-mode="new"><noscript><p class="alert">JavaScript is required to book online. ${esc(ctx.s.phones)} · ${esc(ctx.s.email)}</p></noscript></div>
+    <h1 class="book-head__title">${esc(t(lang, 'book_title'))}</h1>
+    <ul class="trust-row">
+      <li>${icon('shield', 'ico-sm')}<span>${esc(t(lang, 'bk_secure'))}</span></li>
+      <li>${icon('refund', 'ico-sm')}<span>${esc(t(lang, 'bk_free_cancel', { h: s.cancel_hours }))}</span></li>
+    </ul>
+  </div>
+</section>
+<section class="section section--book">
+  <div class="container">
+    <div id="book-app" class="book-app" data-mode="new">
+      <noscript><div class="alert">${icon('info')}<span>JavaScript is required to book online. ${esc(s.phones)} · ${esc(s.email)}</span></div></noscript>
+      <div class="skeleton-stack" aria-hidden="true"><div class="skeleton"></div><div class="skeleton"></div></div>
+    </div>
   </div>
 </section>`;
-  return layout(ctx, { title: L.book_title, body, data: config, scripts: ['/js/book.js'], bodyClass: 'page-book' });
+  return layout(ctx, { title: t(lang, 'book_title'), body, data: config, scripts: ['/js/book.js'], bodyClass: 'page-book' });
 }
 
 function groupLines(lines, lang) {
@@ -348,44 +495,63 @@ function bookingPage(ctx, { b, lines, payments, isNew, config, notified }) {
   const statusKey = b.status === 'pending' && !pendingActive ? 'expired' : b.status;
   const receipts = payments.filter((p) => p.doc_url && Number(p.amount) > 0);
   const travelers = Array.isArray(b.travelers) ? b.travelers : [];
+  const q = encodeURIComponent(s.maps_query || '');
+  const address = pickLang(s.address, lang);
 
   let banner = '';
   if (isNew && b.status === 'confirmed') {
-    banner = `<div class="alert alert-ok">${ICON.check}<div><b>${esc(L.bk_thanks)}</b>${b.email && notified ? `<br>${esc(t(lang, 'bk_thanks_sub', { email: b.email }))}` : ''}</div></div>`;
+    banner = `<div class="confirm-hero" role="status">
+      <span class="success-mark">${icon('check')}</span>
+      <h1 class="confirm-hero__title">${esc(L.bk_thanks)}</h1>
+      ${b.email && notified ? `<p>${esc(t(lang, 'bk_thanks_sub', { email: b.email }))}</p>` : ''}
+    </div>`;
   } else if (statusKey === 'expired') {
-    banner = `<div class="alert">${esc(L.bk_expired_text)} <a href="${esc(url(lang, '/book'))}?in=${esc(b.check_in)}&amp;out=${esc(b.check_out)}">${esc(L.bk_search_again)}</a></div>`;
+    banner = `<div class="alert alert--warn">${icon('clock')}<span>${esc(L.bk_expired_text)} <a href="${esc(url(lang, '/book'))}?in=${esc(b.check_in)}&amp;out=${esc(b.check_out)}">${esc(L.bk_search_again)}</a></span></div>`;
   } else if (b.status === 'cancelled') {
-    banner = `<div class="alert">${esc(L.bk_cancelled_text)}</div>`;
+    banner = `<div class="alert alert--warn">${icon('info')}<span>${esc(L.bk_cancelled_text)}</span></div>`;
   }
+  const heading = isNew && b.status === 'confirmed' ? '' : `<h1 class="book-head__title">${esc(L.bk_title)}</h1>`;
 
   const body = `
-<section class="page-head page-head-sm"><div class="container"><h1>${esc(L.bk_title)}</h1></div></section>
-<section class="section section-tight">
+<section class="section section--book">
   <div class="container booking-view">
+    ${heading}
     ${banner}
-    <div class="booking-card">
-      <div class="booking-card-head">
-        <div><span class="muted">${esc(L.bk_code)}</span><div class="code">${esc(b.code)}</div></div>
-        <span class="status status-${esc(statusKey)}">${esc(L['st_' + statusKey] || statusKey)}</span>
+    <article class="ticket">
+      <header class="ticket__head">
+        <div><span class="ticket__label">${esc(L.bk_code)}</span><div class="ticket__code">${esc(b.code)}</div></div>
+        <span class="status status--${esc(statusKey)}">${esc(L['st_' + statusKey] || statusKey)}</span>
+      </header>
+      <div class="ticket__dates">
+        <div><span class="ticket__label">${esc(L.check_in)}</span><b>${esc(fmtDate(b.check_in, lang))}</b><span class="muted">${esc(t(lang, 'checkin_from', { t: s.checkin_time }))}</span></div>
+        <span class="ticket__nights">${esc(nights === 1 ? L.bk_night : t(lang, 'bk_nights', { n: nights }))}</span>
+        <div><span class="ticket__label">${esc(L.check_out)}</span><b>${esc(fmtDate(b.check_out, lang))}</b><span class="muted">${esc(t(lang, 'checkout_until', { t: s.checkout_time }))}</span></div>
       </div>
-      <dl class="kv">
-        <dt>${esc(L.bk_dates)}</dt>
-        <dd>${esc(fmtDate(b.check_in, lang))} → ${esc(fmtDate(b.check_out, lang))} <span class="muted">(${esc(nights === 1 ? L.bk_night : t(lang, 'bk_nights', { n: nights }))})</span><br>
-          <span class="muted">${esc(t(lang, 'checkin_from', { t: s.checkin_time }))} · ${esc(t(lang, 'checkout_until', { t: s.checkout_time }))}</span></dd>
-        <dt>${esc(L.bk_rooms)}</dt><dd>${groupLines(lines, lang).map(esc).join('<br>')}</dd>
-        ${travelers.length ? `<dt>${esc(L.bk_guests)}</dt><dd>${travelers.map((x) => esc(x.name)).join('<br>')}</dd>` : ''}
-        <dt>${esc(L.bk_total)}</dt><dd><b>${esc(fmtMoney(b.total, lang, b.currency))}</b></dd>
-        ${Number(b.paid) ? `<dt>${esc(L.bk_paid)}</dt><dd>${esc(fmtMoney(b.paid, lang, b.currency))}</dd>` : ''}
-        ${b.status === 'confirmed' && due > 0 ? `<dt>${esc(L.bk_due)}</dt><dd><b>${esc(fmtMoney(due, lang, b.currency))}</b></dd>` : ''}
-        ${receipts.length ? `<dt>${esc(L.bk_receipt)}</dt><dd>${receipts.map((p) => `<a href="${esc(p.doc_url)}" target="_blank" rel="noopener">${ICON.doc}${esc(t(lang, 'bk_download', { n: p.doc_number }))}</a>`).join('<br>')}</dd>` : ''}
-        <dt>${esc(L.bk_arrival)}</dt><dd>${esc(pickLang(s.address, lang))}</dd>
+      <dl class="ticket__rows">
+        <div><dt>${esc(L.bk_rooms)}</dt><dd>${groupLines(lines, lang).map(esc).join('<br>')}</dd></div>
+        ${travelers.length ? `<div><dt>${esc(L.bk_guests)}</dt><dd>${travelers.map((x) => esc(x.name)).join('<br>')}</dd></div>` : ''}
+        <div class="ticket__total"><dt>${esc(L.bk_total)}</dt><dd>${esc(fmtMoney(b.total, lang, b.currency))}</dd></div>
+        ${Number(b.paid) ? `<div><dt>${esc(L.bk_paid)}</dt><dd>${esc(fmtMoney(b.paid, lang, b.currency))}</dd></div>` : ''}
+        ${b.status === 'confirmed' && due > 0 ? `<div><dt>${esc(L.bk_due)}</dt><dd><b>${esc(fmtMoney(due, lang, b.currency))}</b></dd></div>` : ''}
+        ${receipts.length ? `<div><dt>${esc(L.bk_receipt)}</dt><dd>${receipts.map((p) => `<a href="${esc(p.doc_url)}" target="_blank" rel="noopener">${icon('external', 'ico-sm')} ${esc(t(lang, 'bk_download', { n: p.doc_number }))}</a>`).join('<br>')}</dd></div>` : ''}
       </dl>
-    </div>
+    </article>
     ${pendingActive ? '<div id="book-app" class="book-app" data-mode="resume"></div>' : ''}
-    ${b.status === 'confirmed' ? `<p class="muted">${esc(t(lang, 'bk_cancel_text', { h: s.cancel_hours }))}</p><p><button class="btn btn-ghost btn-sm" type="button" data-print>${esc(L.bk_print)}</button></p>` : ''}
+    ${b.status === 'confirmed' ? `<section class="next-steps" aria-labelledby="next-title">
+      <h2 class="next-steps__title" id="next-title">${esc(t(lang, 'bk_next_title'))}</h2>
+      <ul class="rule-list">
+        <li>${icon('info')}<span>${esc(t(lang, 'bk_next_1'))}</span></li>
+        <li>${icon('pin')}<span>${esc(t(lang, 'bk_next_2', { t: s.checkin_time, address }))}</span></li>
+        <li>${icon('refund')}<span>${esc(t(lang, 'bk_cancel_text', { h: s.cancel_hours }))}</span></li>
+      </ul>
+      <div class="btn-row">
+        <a class="btn btn-secondary btn-sm" href="https://www.google.com/maps/search/?api=1&amp;query=${esc(q)}" target="_blank" rel="noopener">${icon('map')}<span>${esc(t(lang, 'bk_directions'))}</span></a>
+        <button class="btn btn-secondary btn-sm" type="button" data-print>${icon('printer')}<span>${esc(L.bk_print)}</span></button>
+      </div>
+    </section>` : ''}
   </div>
 </section>
-${contactBlock(ctx)}`;
+${contactSection(ctx)}`;
   return layout(ctx, {
     title: L.bk_title, body, noindex: true, bodyClass: 'page-booking',
     data: pendingActive ? config : null, scripts: pendingActive ? ['/js/book.js'] : [],
@@ -397,9 +563,9 @@ function termsPage(ctx) {
   const L = STR[lang];
   const items = pickLang(s.terms, lang).split('\n').map((x) => x.trim()).filter(Boolean);
   const body = `
-<section class="page-head page-head-sm"><div class="container"><h1>${esc(L.terms_title)}</h1></div></section>
-<section class="section section-tight"><div class="container prose"><ol class="terms">${items.map((x) => `<li>${esc(x)}</li>`).join('')}</ol></div></section>`;
-  return layout(ctx, { title: L.terms_title, body });
+${C.pageHero(ctx, { title: L.terms_title, compact: true })}
+<section class="section section--tight"><div class="container prose"><ol class="terms">${items.map((x) => `<li>${esc(x)}</li>`).join('')}</ol></div></section>`;
+  return layout(ctx, { title: L.terms_title, body, bodyClass: 'page-text' });
 }
 
 function textPage(ctx, key) {
@@ -409,15 +575,20 @@ function textPage(ctx, key) {
   const vars = { org: pickLang(s.site_name, lang), email: s.email, phone: s.phones, address: pickLang(s.address, lang) };
   const paras = (PAGES[key][lang] || PAGES[key].en).map((p) => p.replace(/\{(\w+)\}/g, (_, k) => vars[k] || ''));
   const body = `
-<section class="page-head page-head-sm"><div class="container"><h1>${esc(title)}</h1></div></section>
-<section class="section section-tight"><div class="container prose">${paras.map((p) => `<p>${esc(p)}</p>`).join('')}</div></section>`;
-  return layout(ctx, { title, body });
+${C.pageHero(ctx, { title, compact: true })}
+<section class="section section--tight"><div class="container prose">${paras.map((p) => `<p>${esc(p)}</p>`).join('')}</div></section>`;
+  return layout(ctx, { title, body, bodyClass: 'page-text' });
 }
 
 function notFound(ctx) {
   const L = STR[ctx.lang];
-  const body = `<section class="page-head"><div class="container"><h1>${esc(L.not_found)}</h1><p><a class="btn btn-accent" href="${esc(url(ctx.lang))}">${esc(L.back_home)}</a></p></div></section>`;
-  return layout(ctx, { title: L.not_found, body, noindex: true });
+  const body = `
+${C.pageHero(ctx, { title: L.not_found, compact: true })}
+<section class="section section--tight"><div class="container"><a class="btn btn-primary" href="${esc(url(ctx.lang))}">${esc(L.back_home)}</a></div></section>`;
+  return layout(ctx, { title: L.not_found, body, noindex: true, bodyClass: 'page-text' });
 }
 
-module.exports = { LANGS, url, prefix, fmtMoney, home, roomsPage, bookPage, bookingPage, termsPage, textPage, notFound };
+module.exports = {
+  LANGS, url, prefix, fmtMoney, home, roomsPage, roomPage, housePage, locationPage, contactPage, groupsPage,
+  bookPage, bookingPage, termsPage, textPage, notFound,
+};

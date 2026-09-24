@@ -161,4 +161,41 @@ ${booking.notes ? `<p>בקשות: ${esc(booking.notes)}</p>` : ''}
   };
 }
 
-module.exports = { configured, send, guestEmail, adminEmail };
+const GROUP_ACK = {
+  en: { subject: (site, code) => `We received your group inquiry – ${site} (${code})`, body: 'Thank you for your group inquiry. The Bethel team will get back to you with availability and a price.' },
+  de: { subject: (site, code) => `Ihre Gruppenanfrage ist angekommen – ${site} (${code})`, body: 'Vielen Dank für Ihre Gruppenanfrage. Das Bethel-Team meldet sich mit Verfügbarkeit und Preis bei Ihnen.' },
+  ru: { subject: (site, code) => `Мы получили ваш запрос для группы – ${site} (${code})`, body: 'Спасибо за ваш запрос. Команда Bethel свяжется с вами и сообщит о наличии мест и цене.' },
+};
+
+// Notification to the hostel (Hebrew) and an acknowledgement to the contact person (their language)
+async function groupRequestEmails(r, settings) {
+  const rows = [
+    ['קבוצה', r.group], ['איש קשר', r.contact], ['מייל', r.email], ['טלפון', r.phone],
+    ['תאריכים', `${dmy(r.arrival)} – ${dmy(r.departure)}`], ['גודל הקבוצה', String(r.size)],
+    ['מבוגרים', r.adults == null ? '' : String(r.adults)], ['ילדים', r.children == null ? '' : String(r.children)],
+    ['בקשות מיוחדות', r.needs], ['הודעה', r.message], ['שפה', r.lang],
+  ].filter(([, v]) => v);
+  const table = rows.map(([k, v]) => `<tr><td style="padding:6px 0;color:#6b5d4f;width:35%;vertical-align:top">${esc(k)}</td><td style="padding:6px 0;white-space:pre-wrap">${esc(v)}</td></tr>`).join('');
+  const out = [];
+  if (settings.notify_email) {
+    out.push({
+      to: settings.notify_email,
+      replyTo: r.email,
+      subject: `בקשת קבוצה ${r.code} – ${r.group} (${dmy(r.arrival)})`,
+      html: layout('he', `<h1 style="font-size:20px;margin:0 0 12px">בקשת קבוצה חדשה ${esc(r.code)}</h1><table style="width:100%;border-collapse:collapse;font-size:15px">${table}</table>`),
+      text: rows.map(([k, v]) => `${k}: ${v}`).join('\n'),
+    });
+  }
+  const ack = GROUP_ACK[r.lang] || GROUP_ACK.en;
+  const site = pickLang(settings.site_name, r.lang);
+  out.push({
+    to: r.email,
+    replyTo: settings.email,
+    subject: ack.subject(site, r.code),
+    html: layout(r.lang, `<h1 style="font-size:20px;margin:0 0 12px">${esc(site)}</h1><p>${esc(ack.body)}</p><p><b>${esc(r.code)}</b> · ${esc(dmy(r.arrival))} – ${esc(dmy(r.departure))} · ${esc(String(r.size))}</p><p style="font-size:14px;color:#6b5d4f">${esc(settings.phones)} · ${esc(settings.email)}</p>`),
+    text: `${ack.body}\n${r.code} · ${dmy(r.arrival)} – ${dmy(r.departure)}`,
+  });
+  return out;
+}
+
+module.exports = { configured, send, guestEmail, adminEmail, groupRequestEmails };

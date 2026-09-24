@@ -4,7 +4,7 @@ try { process.loadEnvFile(path.join(__dirname, '.env')); } catch (_) { /* no .en
 
 const express = require('express');
 const db = require('./src/db');
-const { seedIfEmpty, addMissingTranslations } = require('./src/seed');
+const { seedIfEmpty, addMissingTranslations, upgradeDefaultPhotos } = require('./src/seed');
 const booking = require('./src/booking');
 const publicRoutes = require('./src/routes/public');
 const adminRoutes = require('./src/routes/admin');
@@ -31,6 +31,7 @@ app.use((req, res, next) => {
 
 app.get('/health', (req, res) => res.json({ ok: true }));
 
+app.use('/photos', express.static(path.join(__dirname, 'public', 'photos'), { maxAge: '365d', immutable: true, index: false }));
 app.use(express.static(path.join(__dirname, 'public'), { maxAge: '7d', index: false }));
 
 // Admin panel (single page app)
@@ -61,9 +62,12 @@ app.get(['/admin', '/admin/'], (req, res) => {
 app.use('/api/admin', adminRoutes);
 app.use(publicRoutes);
 
-app.use((req, res) => {
+app.use(async (req, res) => {
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'not_found' });
-  res.status(404).type('html').send('<!doctype html><meta charset="utf-8"><title>404</title><p style="font-family:sans-serif">Page not found – <a href="/">Bethel Hostel</a></p>');
+  const render = require('./src/render');
+  const lang = render.LANGS.find((l) => l !== 'en' && (req.path === '/' + l || req.path.startsWith('/' + l + '/'))) || 'en';
+  const s = await require('./src/settings').getSettings();
+  res.status(404).send(render.notFound({ lang, s, path: req.path, origin: booking.origin(), version: VERSION }));
 });
 
 // eslint-disable-next-line no-unused-vars
@@ -84,6 +88,7 @@ async function start() {
   await db.migrate();
   await seedIfEmpty();
   await addMissingTranslations();
+  await upgradeDefaultPhotos();
   app.listen(PORT, () => {
     console.log(`Bethel booking running on http://localhost:${PORT}`);
     console.log(`  PayPal: ${require('./src/paypal').configured() ? require('./src/paypal').env() : 'not configured'} | Morning: ${require('./src/morning').configured() ? require('./src/morning').env() : 'not configured'} | demo: ${booking.demoMode()}`);

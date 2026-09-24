@@ -1,8 +1,6 @@
 'use strict';
 const db = require('./db');
 
-const WP = 'https://www.bethel-hostel.com/wp-content/uploads';
-
 // Initial room setup. Everything here can be changed later in the admin panel (חדרים ומחירים).
 // Layout and prices follow the hostel's current requirements (docs/other-session-summary-he.md):
 //   4 shared rooms of 6 beds  = 24 beds (2 women's rooms, 2 men's rooms) at 150 NIS per bed
@@ -28,7 +26,7 @@ const ROOM_TYPES = [
       ru: 'Только для женщин. Ребёнок может жить в общей комнате только вместе с родителем того же пола.',
     },
     sold_as: 'bed', capacity: 1, prices: [150], gender: 'female',
-    photos: [`${WP}/2020/06/Room-6-6-bed-dormatory-.jpeg`],
+    photos: ['/photos/dorm-women-960.jpg'],
     units: [...bedUnits('חדר נשים א׳', 6), ...bedUnits('חדר נשים ב׳', 6)],
   },
   {
@@ -47,7 +45,7 @@ const ROOM_TYPES = [
       ru: 'Только для мужчин. Ребёнок может жить в общей комнате только вместе с родителем того же пола.',
     },
     sold_as: 'bed', capacity: 1, prices: [150], gender: 'male',
-    photos: [`${WP}/2025/06/Room-4--scaled-1200x900.jpeg`],
+    photos: ['/photos/dorm-men-1440.jpg'],
     units: [...bedUnits('חדר גברים א׳', 6), ...bedUnits('חדר גברים ב׳', 6)],
   },
   {
@@ -66,7 +64,7 @@ const ROOM_TYPES = [
       ru: '₪300 за взрослого за ночь. Дети до 12 лет и младенцы – бесплатно.',
     },
     sold_as: 'room', capacity: 4, prices: [300, 600, 600, 600], gender: 'any',
-    photos: [`${WP}/2020/06/Bethel-Hostel-Room-9-Studio-1200x800.jpg`, `${WP}/2020/06/Bethel-Hostel-Room-9-Studio-2-1200x676.jpg`, `${WP}/2020/06/Promenade_Rooms_2_9_10-1536x674.jpg`],
+    photos: ['/photos/studio-1440.jpg', '/photos/studio-kitchen-1440.jpg', '/photos/studio-terrace-1440.jpg'],
     units: ['סטודיו 1', 'סטודיו 2', 'סטודיו 3'],
   },
 ];
@@ -107,4 +105,16 @@ async function addMissingTranslations(lang = 'ru') {
   }
 }
 
-module.exports = { seedIfEmpty, addMissingTranslations, ROOM_TYPES };
+// Rooms still showing only the old WordPress photos get the local photo set (admin-chosen photos are kept).
+async function upgradeDefaultPhotos() {
+  for (const t of ROOM_TYPES) {
+    await db.q(
+      `UPDATE room_types SET photos = $2::jsonb
+        WHERE slug = $1 AND jsonb_array_length(photos) > 0
+          AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements_text(photos) p WHERE p NOT LIKE '%bethel-hostel.com/wp-content/%')`,
+      [t.slug, JSON.stringify(t.photos)]
+    );
+  }
+}
+
+module.exports = { seedIfEmpty, addMissingTranslations, upgradeDefaultPhotos, ROOM_TYPES };

@@ -250,6 +250,12 @@ const STR = {
   },
 };
 
+const SITE = require('./i18n-site');
+for (const lang of Object.keys(STR)) {
+  Object.assign(STR[lang], SITE[lang] || {});
+  for (const [k, v] of Object.entries(SITE.en)) if (!(k in STR[lang])) STR[lang][k] = v;
+}
+
 function t(lang, key, vars) {
   const s = (STR[lang] && STR[lang][key]) || STR.en[key] || key;
   if (!vars) return s;

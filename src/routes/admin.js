@@ -293,6 +293,25 @@ router.post('/payments/:id/refund', async (req, res) => {
   res.json(await bookingDetail(p.booking_id));
 });
 
+// ---------------------------------------------------------------- group inquiries
+
+router.get('/group-requests', async (req, res) => {
+  const rows = await db.many('SELECT * FROM group_requests ORDER BY created_at DESC LIMIT 300');
+  res.json({ requests: rows });
+});
+
+router.patch('/group-requests/:id', async (req, res) => {
+  const b = req.body || {};
+  const status = ['new', 'answered', 'closed'].includes(b.status) ? b.status : null;
+  const notes = typeof b.admin_notes === 'string' ? b.admin_notes.slice(0, 4000) : null;
+  const r = await db.q(
+    'UPDATE group_requests SET status = COALESCE($2, status), admin_notes = COALESCE($3, admin_notes) WHERE id = $1',
+    [int(req.params.id), status, notes]
+  );
+  if (!r.rowCount) throw new HttpError(404, 'not_found');
+  res.json({ ok: true });
+});
+
 // ---------------------------------------------------------------- rooms
 
 function langObj(v, max) {
@@ -310,7 +329,7 @@ function cleanType(b) {
   const name = langObj(b.name, 120);
   if (!name.he && !name.en && !name.de) throw new HttpError(400, 'name_required');
   const photos = (Array.isArray(b.photos) ? b.photos : [])
-    .filter((p) => typeof p === 'string' && p.length < 500 && (/^https:\/\//.test(p) || /^\/img\/\d+$/.test(p)))
+    .filter((p) => typeof p === 'string' && p.length < 500 && (/^https:\/\//.test(p) || /^\/img\/\d+$/.test(p) || /^\/photos\/[a-z0-9-]+\.(?:jpg|webp)$/.test(p)))
     .slice(0, 30);
   return {
     name,

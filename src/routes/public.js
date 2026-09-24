@@ -8,7 +8,9 @@ const paypal = require('../paypal');
 const morning = require('../morning');
 const mailer = require('../mailer');
 const { STR } = require('../i18n');
-const { HttpError, todayIL, addDays, pickLang, rateLimit, int } = require('../util');
+const photos = require('../ui/photos');
+const ui = require('../ui/components');
+const { HttpError, todayIL, addDays, pickLang, rateLimit, int, isDate, isEmail, str, randomCode } = require('../util');
 
 const router = express.Router();
 const VERSION = Date.now().toString(36);
@@ -28,7 +30,10 @@ function publicType(t, lang) {
     capacity: t.capacity,
     prices: (t.prices || []).map(Number),
     gender: t.gender,
-    photo: (t.photos || [])[0] || null,
+    photo: (t.photos || [])[0] ? photos.url(t.photos[0]) : null,
+    photoSrcset: photos.srcset((t.photos || [])[0]),
+    url: ui.roomUrl(lang, t),
+    facts: ui.roomFacts(t, lang).slice(0, 3).map(([icon, text]) => ({ icon, text })),
   };
 }
 
@@ -50,6 +55,8 @@ function bookConfig(s, lang, types, extra = {}) {
     paypal: paypal.configured() ? { clientId: paypal.clientId(), locale: { he: 'he_IL', de: 'de_DE', en: 'en_US', ru: 'ru_RU' }[lang] } : null,
     demo: booking.demoMode() && !paypal.configured(),
     termsUrl: render.url(lang, '/terms'),
+    groupsUrl: render.url(lang, '/groups'),
+    cancelHours: s.cancel_hours,
     bookingBase: render.url(lang, '/booking/'),
     contact: { phones: s.phones, email: s.email, whatsapp: String(s.whatsapp || '').replace(/\D/g, '') },
     types: types.map((t) => publicType(t, lang)),
@@ -58,18 +65,53 @@ function bookConfig(s, lang, types, extra = {}) {
   };
 }
 
+// Dates and guests carried between pages (?in=…&out=…&guests=…)
+function searchQuery(q) {
+  const out = {};
+  if (isDate(q.in)) out.in = q.in;
+  if (isDate(q.out) && (!out.in || q.out > out.in)) out.out = q.out;
+  const g = int(q.guests, 0);
+  if (g > 0 && g < 100) out.guests = g;
+  return out;
+}
+
+function cleanGroupRequest(v) {
+  const errors = [];
+  const data = {
+    group: str(v.group, 160),
+    contact: str(v.contact, 120),
+    email: str(v.email, 200),
+    phone: str(v.phone, 40),
+    size: int(v.size, 0),
+    arrival: isDate(v.arrival) ? v.arrival : '',
+    departure: isDate(v.departure) ? v.departure : '',
+    adults: v.adults === '' || v.adults == null ? null : Math.max(0, Math.min(500, int(v.adults, 0))),
+    children: v.children === '' || v.children == null ? null : Math.max(0, Math.min(500, int(v.children, 0))),
+    needs: str(v.needs, 2000),
+    message: str(v.message, 4000),
+  };
+  if (!data.group) errors.push('group');
+  if (data.contact.length < 2) errors.push('contact');
+  if (!isEmail(data.email)) errors.push('email');
+  if (data.phone.replace(/\D/g, '').length < 6) errors.push('phone');
+  if (data.size < 1 || data.size > 500) errors.push('size');
+  if (!data.arrival) errors.push('arrival');
+  if (!data.departure) errors.push('departure');
+  if (data.arrival && data.departure && (data.departure <= data.arrival || data.arrival < todayIL())) errors.push('dates');
+  return { errors, data };
+}
+
 // ---------------------------------------------------------------- old WordPress URLs -> new pages (keeps Google rankings)
 const OLD_URLS = {
   '/accommodation': '/rooms',
-  '/bethel-hostel-haifa': '/#hostel',
-  '/location': '/#location',
+  '/bethel-hostel-haifa': '/house',
   '/reservations': '/book',
-  '/gallery': '/#hostel',
+  '/gallery': '/house',
   '/de/home-deutsch': '/de',
   '/de/unterkunft': '/de/rooms',
-  '/de/die-jugendherberge': '/de#hostel',
-  '/de/das-jugendherberge': '/de#hostel',
-  '/de/ort': '/de#location',
+  '/de/die-jugendherberge': '/de/house',
+  '/de/das-jugendherberge': '/de/house',
+  '/de/ort': '/de/location',
   '/de/reservierung': '/de/book',
 };
 router.use((req, res, next) => {
@@ -92,7 +134,43 @@ for (const lang of render.LANGS) {
   router.get(p + '/rooms', async (req, res) => {
     const ctx = await ctxFor(lang, '/rooms');
     const types = await booking.listRoomTypes();
-    res.send(render.roomsPage(ctx, types));
+    res.send(render.roomsPage(ctx, types, searchQuery(req.query)));
+  });
+
+  router.get(p + '/rooms/:key', async (req, res, next) => {
+    const types = await booking.listRoomTypes();
+    const key = String(req.params.key);
+    const type = types.find((x) => x.slug === key) || types.find((x) => String(x.id) === key);
+    if (!type) return next();
+    if (type.slug && key !== type.slug) return res.redirect(301, render.url(lang, '/rooms/' + encodeURIComponent(type.slug)));
+    const ctx = await ctxFor(lang, '/rooms/' + encodeURIComponent(key));
+    res.send(render.roomPage(ctx, type, types, searchQuery(req.query)));
+  });
+
+  router.get(p + '/house', async (req, res) => res.send(render.housePage(await ctxFor(lang, '/house'))));
+  router.get(p + '/location', async (req, res) => res.send(render.locationPage(await ctxFor(lang, '/location'))));
+  router.get(p + '/contact', async (req, res) => res.send(render.contactPage(await ctxFor(lang, '/contact'))));
+  router.get(p + '/groups', async (req, res) => res.send(render.groupsPage(await ctxFor(lang, '/groups'))));
+
+  router.post(p + '/groups', express.urlencoded({ extended: false, limit: '50kb' }), async (req, res) => {
+    const ctx = await ctxFor(lang, '/groups');
+    const values = req.body || {};
+    if (!rateLimit('group:' + req.ip, 8, 60 * 60 * 1000)) {
+      return res.status(429).send(render.groupsPage(ctx, { values, errors: ['server'] }));
+    }
+    if (values.website) return res.send(render.groupsPage(ctx, { sent: 'G' + randomCode(5) }));
+    const { errors, data } = cleanGroupRequest(values);
+    if (errors.length) return res.status(400).send(render.groupsPage(ctx, { values, errors }));
+    const code = 'G' + randomCode(5);
+    await db.q(
+      `INSERT INTO group_requests (code, lang, group_name, contact_name, email, phone, arrival, departure, group_size, adults, children, needs, message)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      [code, lang, data.group, data.contact, data.email, data.phone, data.arrival, data.departure, data.size, data.adults, data.children, data.needs, data.message]
+    );
+    mailer.groupRequestEmails({ ...data, code, lang }, ctx.s)
+      .then((mails) => Promise.all(mails.map((m) => mailer.send(m))))
+      .catch((e) => console.error('[mail] group request', e.message));
+    res.send(render.groupsPage(ctx, { sent: code }));
   });
 
   router.get(p + '/book', async (req, res) => {
@@ -104,6 +182,7 @@ for (const lang of render.LANGS) {
         checkIn: typeof q.in === 'string' ? q.in : '',
         checkOut: typeof q.out === 'string' ? q.out : '',
         typeId: int(q.type, 0) || null,
+        guests: searchQuery(q).guests || null,
       },
     });
     res.send(render.bookPage(ctx, config));
@@ -132,9 +211,10 @@ router.get('/robots.txt', (req, res) => {
   res.type('text/plain').send(`User-agent: *\nDisallow: /admin\nDisallow: /api/\nDisallow: /booking/\nDisallow: /he/booking/\nDisallow: /de/booking/\nSitemap: ${booking.origin()}/sitemap.xml\n`);
 });
 
-router.get('/sitemap.xml', (req, res) => {
+router.get('/sitemap.xml', async (req, res) => {
   const o = booking.origin();
-  const paths = ['', '/rooms', '/book', '/terms', '/privacy', '/accessibility'];
+  const types = await booking.listRoomTypes();
+  const paths = ['', '/rooms', ...types.map((x) => '/rooms/' + encodeURIComponent(x.slug || x.id)), '/house', '/location', '/groups', '/contact', '/book', '/terms', '/privacy', '/accessibility'];
   const urls = paths.map((path) => render.LANGS.map((lang) => `<url><loc>${o}${render.url(lang, path)}</loc>${render.LANGS.map((l) => `<xhtml:link rel="alternate" hreflang="${l}" href="${o}${render.url(l, path)}"/>`).join('')}</url>`).join('')).join('');
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">${urls}</urlset>`);
 });

@@ -1,0 +1,157 @@
+{
+  "garden": {
+    "ratio": 1.3333,
+    "widths": [
+      640,
+      960,
+      1440,
+      1920,
+      2560
+    ],
+    "fallback": 1440,
+    "original": "2025/06/Gardens--scaled.jpeg"
+  },
+  "porch": {
+    "ratio": 1.3333,
+    "widths": [
+      640,
+      960,
+      1440,
+      1920
+    ],
+    "fallback": 1440,
+    "original": "2025/06/Porch-scaled.jpeg"
+  },
+  "entrance": {
+    "ratio": 1.3333,
+    "widths": [
+      640,
+      960,
+      1440,
+      1920
+    ],
+    "fallback": 1440,
+    "original": "2025/06/Entrance--scaled.jpeg"
+  },
+  "courtyard": {
+    "ratio": 1.7067,
+    "widths": [
+      640,
+      960,
+      1440,
+      1920
+    ],
+    "fallback": 1440,
+    "original": "2025/06/Guest-House-Area-scaled.jpeg"
+  },
+  "fellowship": {
+    "ratio": 1.7778,
+    "widths": [
+      640,
+      960,
+      1440,
+      1920
+    ],
+    "fallback": 1440,
+    "original": "2025/06/Fellowship-shared-Rooms-scaled.jpeg"
+  },
+  "staircase": {
+    "ratio": 0.75,
+    "widths": [
+      480,
+      800,
+      1200
+    ],
+    "fallback": 1200,
+    "original": "2025/06/Second-floor-of-the-guest-house-scaled.jpeg"
+  },
+  "dorm-men": {
+    "ratio": 1.3333,
+    "widths": [
+      640,
+      960,
+      1440,
+      1920
+    ],
+    "fallback": 1440,
+    "original": "2025/06/Room-4--scaled.jpeg"
+  },
+  "dorm-women": {
+    "ratio": 1.5058,
+    "widths": [
+      640,
+      960
+    ],
+    "fallback": 960,
+    "original": "2020/06/Room-6-6-bed-dormatory-.jpeg"
+  },
+  "studio": {
+    "ratio": 1.7751,
+    "widths": [
+      640,
+      960,
+      1440,
+      1800
+    ],
+    "fallback": 1440,
+    "original": "2020/06/Bethel-Hostel-Room-9-Studio-2.jpg"
+  },
+  "studio-kitchen": {
+    "ratio": 1.5,
+    "widths": [
+      640,
+      960,
+      1440,
+      1800
+    ],
+    "fallback": 1440,
+    "original": "2020/06/Bethel-Hostel-Room-9-Studio.jpg"
+  },
+  "studio-terrace": {
+    "ratio": 2.2785,
+    "widths": [
+      640,
+      960,
+      1440,
+      1800
+    ],
+    "fallback": 1440,
+    "original": "2020/06/Promenade_Rooms_2_9_10.jpg"
+  },
+  "haifa-view": {
+    "ratio": 1.5058,
+    "widths": [
+      640,
+      1030
+    ],
+    "fallback": 1030,
+    "original": "2020/06/German-Colony-location-of-Bethel-Hostel.jpeg"
+  },
+  "bat-galim": {
+    "ratio": 1.8061,
+    "widths": [
+      640,
+      1180
+    ],
+    "fallback": 1180,
+    "original": "2020/06/Bat-Galim-Beach-Promenade-20-minute-walk-from-Hostel.png"
+  },
+  "dining-hall": {
+    "ratio": 1.5058,
+    "widths": [
+      640,
+      1030
+    ],
+    "fallback": 1030,
+    "original": "2020/06/Dinning-Room-and-Recreational-area.jpeg"
+  },
+  "front-garden": {
+    "ratio": 1.2953,
+    "widths": [
+      640,
+      886
+    ],
+    "fallback": 886,
+    "original": "2020/06/Front-of-Hostel-Garden.jpeg"
+  }
+}

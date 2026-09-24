@@ -129,3 +129,24 @@ CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status, check_in);
 CREATE INDEX IF NOT EXISTS idx_bookings_dates ON bookings(check_in, check_out);
 CREATE INDEX IF NOT EXISTS idx_payments_booking ON payments(booking_id);
 CREATE INDEX IF NOT EXISTS idx_audit_booking ON audit_log(booking_id);
+
+CREATE TABLE IF NOT EXISTS group_requests (
+  id           serial PRIMARY KEY,
+  code         text NOT NULL UNIQUE,
+  lang         text NOT NULL DEFAULT 'en',
+  group_name   text NOT NULL,
+  contact_name text NOT NULL,
+  email        text NOT NULL,
+  phone        text NOT NULL,
+  arrival      date NOT NULL,
+  departure    date NOT NULL,
+  group_size   int NOT NULL,
+  adults       int,
+  children     int,
+  needs        text,
+  message      text,
+  status       text NOT NULL DEFAULT 'new',   -- new | answered | closed
+  admin_notes  text,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_group_requests_created ON group_requests(created_at DESC);

@@ -1,7 +1,6 @@
 'use strict';
 const db = require('./db');
 
-const WP = 'https://www.bethel-hostel.com/wp-content/uploads';
 
 // Every setting has a default. Admin changes are stored in the `settings` table.
 const DEFAULTS = {
@@ -13,18 +12,18 @@ const DEFAULTS = {
     ru: "Библейская община и дом гостеприимства для паломников",
   },
   hero_title: {
-    en: 'Shalom and welcome to Bethel',
-    he: 'שלום וברוכים הבאים לבית אל',
-    de: 'Shalom und herzlich willkommen im Bethel',
-    ru: "Шалом и добро пожаловать в Bethel",
+    en: "Stay. Connect. *Discover Haifa.*",
+    he: "לינה. קהילה. *לגלות את חיפה.*",
+    de: "Ankommen. Begegnen. *Haifa entdecken.*",
+    ru: "Живите. Общайтесь. *Открывайте Хайфу.*",
   },
   hero_text: {
-    en: 'A Christian hostel and Bible community in the German Colony of Haifa – a peaceful home for pilgrims, families and travellers, steps away from cafés and a short walk from the sea.',
-    he: 'אכסניה נוצרית וקהילה מקראית במושבה הגרמנית בחיפה – בית שקט לצליינים, למשפחות ולמטיילים, צעדים ספורים מבתי הקפה והליכה קצרה מהים.',
-    de: 'Eine christliche Herberge und Bibelgemeinschaft in der Deutschen Kolonie von Haifa – ein ruhiges Zuhause für Pilger, Familien und Reisende, wenige Schritte von Cafés und nur einen kurzen Spaziergang vom Meer entfernt.',
-    ru: "Христианский хостел и библейская община в Немецкой колонии Хайфы – тихий дом для паломников, семей и путешественников, в двух шагах от кафе и недалеко от моря.",
+    en: "A Christian guesthouse and Bible community in an old stone house in Haifa’s German Colony – with a garden, a porch and a shared table, a few steps from cafés and not far from the sea.",
+    he: "בית הארחה נוצרי וקהילה מקראית בבית אבן ישן במושבה הגרמנית בחיפה – עם גינה, מרפסת ושולחן משותף, צעדים מבתי הקפה ולא רחוק מהים.",
+    de: "Ein christliches Gästehaus und eine Bibelgemeinschaft in einem alten Steinhaus in Haifas Deutscher Kolonie – mit Garten, Veranda und gemeinsamem Tisch, wenige Schritte von Cafés und nicht weit vom Meer.",
+    ru: "Христианский гостевой дом и библейская община в старом каменном доме в Немецкой колонии Хайфы – с садом, верандой и общим столом, в двух шагах от кафе и недалеко от моря.",
   },
-  hero_image: `${WP}/2020/06/Front-of-Hostel-Garden.jpeg`,
+  hero_image: '/photos/garden-1440.jpg',
   about_text: {
     en: 'Bethel is a Bible community and a hospitality home for pilgrims. The house has a garden, a porch, a dining and recreation room and a fellowship room where guests meet. We offer separate dormitories for men and women, private rooms, a studio and a family room in the protected space.',
     he: 'בית אל היא קהילה מקראית ובית הארחה לצליינים. בבית יש גינה, מרפסת, חדר אוכל ופנאי וחדר שיתוף שבו האורחים נפגשים. יש לנו חדרי מעונות נפרדים לגברים ולנשים, חדרים פרטיים, סטודיו וחדר משפחה בממ״ד.',
@@ -122,18 +121,18 @@ const DEFAULTS = {
   },
 
   gallery: [
-    { src: `${WP}/2020/06/Front-of-Hostel-Garden.jpeg`, caption: { en: 'Front of the hostel – garden', he: 'חזית האכסניה – הגינה', de: 'Vorderseite der Herberge – Garten', ru: "Фасад хостела – сад" } },
-    { src: `${WP}/2025/06/Entrance--scaled-1200x900.jpeg`, caption: { en: 'Entrance', he: 'הכניסה', de: 'Eingang', ru: "Вход" } },
-    { src: `${WP}/2020/06/Dinning-Room-and-Recreational-area.jpeg`, caption: { en: 'Dining room and recreation area', he: 'חדר האוכל ואזור הפנאי', de: 'Speise- und Aufenthaltsraum', ru: "Столовая и зона отдыха" } },
-    { src: `${WP}/2025/06/Porch-scaled-1200x900.jpeg`, caption: { en: 'Porch', he: 'המרפסת', de: 'Veranda', ru: "Веранда" } },
-    { src: `${WP}/2025/06/Gardens--scaled-1200x900.jpeg`, caption: { en: 'Garden', he: 'הגינה', de: 'Garten', ru: "Сад" } },
-    { src: `${WP}/2025/06/Guest-House-Area-scaled-1200x703.jpeg`, caption: { en: 'Guest house area', he: 'אזור בית ההארחה', de: 'Gästehausbereich', ru: "Гостевой дом" } },
-    { src: `${WP}/2025/06/Fellowship-shared-Rooms-scaled-1200x675.jpeg`, caption: { en: 'Fellowship room', he: 'חדר השיתוף', de: 'Gemeinschaftsraum', ru: "Комната общения" } },
-    { src: `${WP}/2025/06/Second-floor-of-the-guest-house-scaled-1200x1600.jpeg`, caption: { en: 'Second floor of the guest house', he: 'הקומה השנייה של בית ההארחה', de: 'Obergeschoss des Gästehauses', ru: "Второй этаж гостевого дома" } },
+    { src: '/photos/garden-1440.jpg', caption: { en: "The garden", he: "הגינה", de: "Der Garten", ru: "Сад" } },
+    { src: '/photos/porch-1440.jpg', caption: { en: "The porch", he: "המרפסת", de: "Die Veranda", ru: "Веранда" } },
+    { src: '/photos/fellowship-1440.jpg', caption: { en: "Fellowship room", he: "חדר השיתוף", de: "Gemeinschaftsraum", ru: "Комната общения" } },
+    { src: '/photos/entrance-1440.jpg', caption: { en: "Our entrance on Hagefen Street", he: "הכניסה ברחוב הגפן", de: "Unser Eingang in der Hagefen-Straße", ru: "Вход с улицы Ха-Гефен" } },
+    { src: '/photos/courtyard-1440.jpg', caption: { en: "Guest house courtyard", he: "החצר של בית ההארחה", de: "Innenhof des Gästehauses", ru: "Двор гостевого дома" } },
+    { src: '/photos/staircase-1200.jpg', caption: { en: "Staircase of the guest house", he: "חדר המדרגות של בית ההארחה", de: "Treppenhaus des Gästehauses", ru: "Лестница гостевого дома" } },
+    { src: '/photos/dorm-men-1440.jpg', caption: { en: "Shared room", he: "חדר משותף", de: "Mehrbettzimmer", ru: "Общая комната" } },
+    { src: '/photos/studio-terrace-1440.jpg', caption: { en: "Terrace by the studios", he: "המרפסת ליד הסטודיו", de: "Terrasse vor den Studios", ru: "Терраса у студий" } },
   ],
   nearby: [
-    { src: `${WP}/2020/06/German-Colony-location-of-Bethel-Hostel-980x550.jpeg`, caption: { en: 'German Colony – where Bethel is', he: 'המושבה הגרמנית – כאן נמצאת בית אל', de: 'Deutsche Kolonie – hier liegt Bethel', ru: "Немецкая колония – здесь находится Bethel" } },
-    { src: `${WP}/2020/06/Bat-Galim-Beach-Promenade-20-minute-walk-from-Hostel-980x550.png`, caption: { en: 'Bat Galim beach promenade – 20 minutes on foot', he: 'טיילת בת גלים – 20 דקות הליכה', de: 'Strandpromenade Bat Galim – 20 Minuten zu Fuß', ru: "Набережная Бат-Галим – 20 минут пешком" } },
+    { src: '/photos/haifa-view-1030.jpg', caption: { en: "Haifa from above – the German Colony and the port", he: "חיפה מלמעלה – המושבה הגרמנית והנמל", de: "Haifa von oben – Deutsche Kolonie und Hafen", ru: "Хайфа сверху – Немецкая колония и порт" } },
+    { src: '/photos/bat-galim-1180.jpg', caption: { en: "Bat Galim beach promenade – 20 minutes on foot", he: "טיילת בת גלים – 20 דקות הליכה", de: "Strandpromenade Bat Galim – 20 Minuten zu Fuß", ru: "Набережная Бат-Галим – 20 минут пешком" } },
   ],
 };
 

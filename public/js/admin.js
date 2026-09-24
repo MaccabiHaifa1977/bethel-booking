@@ -146,7 +146,7 @@
   // ---------------------------------------------------------------- shell & router
   const TABS = [
     ['dashboard', 'לוח בקרה'], ['calendar', 'לוח תפוסה'], ['bookings', 'הזמנות'], ['new', '+ הזמנה חדשה'],
-    ['rooms', 'חדרים ומחירים'], ['settings', 'הגדרות האתר'], ['integrations', 'חיבורים'],
+    ['groups', 'בקשות קבוצות'], ['rooms', 'חדרים ומחירים'], ['settings', 'הגדרות האתר'], ['integrations', 'חיבורים'],
   ];
 
   function shell(active) {
@@ -154,7 +154,7 @@
       app.innerHTML = `<header class="topbar"><div class="topbar-inner">
         <a class="brand" href="#/dashboard">בית אל · ניהול</a>
         <nav class="tabs" aria-label="ניווט">${TABS.map(([k, n]) => `<a href="#/${k}" data-tab="${k}">${esc(n)}</a>`).join('')}</nav>
-        <a class="btn btn-sm" href="/he" target="_blank" rel="noopener" style="background:transparent;color:#f3e9da;border-color:rgba(255,255,255,.3)">לאתר</a>
+        <a class="btn btn-sm" href="/" target="_blank" rel="noopener" style="background:transparent;color:#f3e9da;border-color:rgba(255,255,255,.3)">לאתר</a>
         <button class="logout" type="button" data-logout>יציאה</button>
       </div></header><main id="main" class="main"></main>`;
       app.querySelector('[data-logout]').addEventListener('click', async () => {
@@ -198,6 +198,7 @@
       else if (name === 'booking') await viewBooking(main, parts[1]);
       else if (name === 'new') await viewNew(main, q);
       else if (name === 'rooms') await (parts[1] ? viewRoomEdit(main, parts[1]) : viewRooms(main));
+      else if (name === 'groups') await viewGroups(main);
       else if (name === 'settings') await viewSettings(main);
       else if (name === 'integrations') await viewIntegrations(main);
       else main.innerHTML = '<p>הדף לא נמצא</p>';
@@ -1099,6 +1100,49 @@
   }
 
   // ---------------------------------------------------------------- integrations
+  async function viewGroups(main) {
+    const { requests } = await api('GET', '/group-requests');
+    const GST = { new: ['חדשה', 'b-warn'], answered: ['נענתה', 'b-ok'], closed: ['סגורה', 'b'] };
+    const LN = { en: 'אנגלית', de: 'גרמנית', ru: 'רוסית', he: 'עברית' };
+    const card = (r) => {
+      const st = GST[r.status] || GST.new;
+      const a = String(r.arrival).slice(0, 10);
+      const d = String(r.departure).slice(0, 10);
+      const extra = [r.adults != null ? `${esc(r.adults)} מבוגרים` : '', r.children != null ? `${esc(r.children)} ילדים` : ''].filter(Boolean).join(' · ');
+      return `<section class="card" data-req="${r.id}" style="margin-bottom:14px">
+        <div class="row"><h2 style="margin:0">${esc(r.group_name)}</h2><span class="b ${st[1]}">${esc(st[0])}</span><span class="spacer"></span><span class="muted small">${esc(r.code)} · ${esc(dateTime(r.created_at))}</span></div>
+        <p><b>${esc(r.contact_name)}</b> · <a class="ltr" href="mailto:${esc(r.email)}">${esc(r.email)}</a> · <a class="ltr" href="tel:${esc(String(r.phone).replace(/[^\d+]/g, ''))}">${esc(r.phone)}</a> · ${esc(LN[r.lang] || r.lang)}</p>
+        <p>${esc(dmy(a))} – ${esc(dmy(d))} (${nights(a, d)} לילות) · ${esc(r.group_size)} אנשים${extra ? ' · ' + extra : ''}</p>
+        ${r.needs ? `<p><b>בקשות מיוחדות:</b> <span style="white-space:pre-wrap">${esc(r.needs)}</span></p>` : ''}
+        ${r.message ? `<p><b>הודעה:</b> <span style="white-space:pre-wrap">${esc(r.message)}</span></p>` : ''}
+        <label class="f"><span>הערות פנימיות</span><textarea rows="2" data-notes>${esc(r.admin_notes || '')}</textarea></label>
+        <div class="row">
+          <button type="button" class="btn btn-sm" data-set="answered">סימון כנענתה</button>
+          <button type="button" class="btn btn-sm" data-set="closed">סגירה</button>
+          <button type="button" class="btn btn-sm" data-set="new">החזרה לחדשה</button>
+          <button type="button" class="btn btn-sm btn-primary" data-save>שמירת הערות</button>
+        </div>
+      </section>`;
+    };
+    main.innerHTML = `
+      <h1>בקשות קבוצות</h1>
+      <p class="muted">בקשות שנשלחו מטופס ״קבוצות״ באתר. אין בהן תשלום ואין חסימת חדרים – חוזרים לאיש הקשר עם הצעה.</p>
+      ${requests.length ? requests.map(card).join('') : '<div class="card"><p class="muted" style="margin:0">עדיין אין בקשות.</p></div>'}`;
+    main.querySelectorAll('[data-req]').forEach((el) => {
+      const id = el.getAttribute('data-req');
+      el.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-set], [data-save]');
+        if (!btn) return;
+        await run(btn, async () => {
+          const set = btn.getAttribute('data-set');
+          await api('PATCH', '/group-requests/' + id, set ? { status: set } : { admin_notes: el.querySelector('[data-notes]').value });
+          toast('נשמר');
+          if (set) route();
+        });
+      });
+    });
+  }
+
   async function viewIntegrations(main) {
     const i = await api('GET', '/integrations');
     const st = (ok, env, liveName) => (ok ? `<span class="b ${env === liveName ? 'b-ok' : 'b-warn'}">${env === liveName ? 'מחובר – אמיתי' : 'מחובר – ניסיון'}</span>` : '<span class="b b-bad">לא מחובר</span>');
