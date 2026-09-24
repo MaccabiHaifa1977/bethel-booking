@@ -82,6 +82,7 @@ app.use((err, req, res, next) => {
 });
 
 async function start() {
+  console.log('🚀 APP STARTING - NEW DEPLOYMENT');
   await db.migrate();
   await seedIfEmpty();
   app.listen(PORT, () => {
